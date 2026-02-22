@@ -6,6 +6,8 @@ import (
 	"fmt"
 )
 
+type Signature = []byte
+
 
  func GenerateKeyPair() (publicKey []byte, privateKey []byte, err error){
 	publicKey, privateKey, err = ed25519.GenerateKey(rand.Reader)
@@ -18,7 +20,7 @@ import (
 
 
 
-func Sign(privateKey []byte, message []byte) (signature []byte, err error){
+func Sign(privateKey []byte, message []byte) (signature Signature, err error){
 	if len(privateKey) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("expected key size %d, got %d", ed25519.PrivateKeySize, len(privateKey))
 	}
@@ -26,7 +28,7 @@ func Sign(privateKey []byte, message []byte) (signature []byte, err error){
 	return signature, nil
 }
 
-func Verify(publicKey []byte, message []byte, signature []byte) (valid bool, err error) {
+func Verify(publicKey []byte, message []byte, signature Signature) (valid bool, err error) {
 	if len(publicKey) != ed25519.PublicKeySize {
 		return false, fmt.Errorf("expected key size %d, got %d", ed25519.PublicKeySize, len(publicKey))
 	}
