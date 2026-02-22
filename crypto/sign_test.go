@@ -81,3 +81,33 @@ func TestSignAndVerify(t *testing.T) {
         t.Fatalf("expected true, got false")
     }
 }
+
+func TestVerifyWithTamperedMessage(t *testing.T) {
+    // Generate keypair, sign "hello"
+    publicKey, privateKey, err := GenerateKeyPair()
+    if err != nil {
+        t.Fatalf("expected no error, got %v", err)
+    }
+    initialMessage := []byte("hello")
+    signature, err := Sign(privateKey, initialMessage)
+    if err != nil {
+        t.Fatalf("expected no error, got %v", err)
+    }
+    incorrectMessage := []byte("hallo world")
+    valid, err := Verify(publicKey, incorrectMessage, signature)
+    if err != nil {
+        t.Fatalf("expected no error, got %v", err)
+    }
+    if valid {
+        t.Fatalf("expected false, got true")
+    }
+}
+
+func TestSignWithInvalidKey(t *testing.T) {
+    message := []byte("test sign with invalid key message")
+    invalidKey := make([]byte, 10)
+    _, err := Sign(invalidKey, message)
+    if err == nil {
+        t.Fatalf("expected error, got nil")
+    }
+}
