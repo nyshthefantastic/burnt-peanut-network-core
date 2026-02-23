@@ -6,7 +6,7 @@ proto:
 		--proto_path=wire/proto \
 		--go_out=wire/gen \
 		--go_opt=paths=source_relative \
-		wire/proto/meshledger.proto
+		wire/proto/core.proto
 
 clean:
 	rm -rf wire/gen/*.pb.go

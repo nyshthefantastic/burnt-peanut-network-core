@@ -2,7 +2,10 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.4
-// source: meshledger.proto
+// source: core.proto
+
+//
+//this is protobuf package. not GO package.
 
 package gen
 
@@ -54,11 +57,11 @@ func (x ConfidenceLevel) String() string {
 }
 
 func (ConfidenceLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_meshledger_proto_enumTypes[0].Descriptor()
+	return file_core_proto_enumTypes[0].Descriptor()
 }
 
 func (ConfidenceLevel) Type() protoreflect.EnumType {
-	return &file_meshledger_proto_enumTypes[0]
+	return &file_core_proto_enumTypes[0]
 }
 
 func (x ConfidenceLevel) Number() protoreflect.EnumNumber {
@@ -67,7 +70,7 @@ func (x ConfidenceLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ConfidenceLevel.Descriptor instead.
 func (ConfidenceLevel) EnumDescriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{0}
+	return file_core_proto_rawDescGZIP(), []int{0}
 }
 
 type ServicePolicy int32
@@ -103,11 +106,11 @@ func (x ServicePolicy) String() string {
 }
 
 func (ServicePolicy) Descriptor() protoreflect.EnumDescriptor {
-	return file_meshledger_proto_enumTypes[1].Descriptor()
+	return file_core_proto_enumTypes[1].Descriptor()
 }
 
 func (ServicePolicy) Type() protoreflect.EnumType {
-	return &file_meshledger_proto_enumTypes[1]
+	return &file_core_proto_enumTypes[1]
 }
 
 func (x ServicePolicy) Number() protoreflect.EnumNumber {
@@ -116,7 +119,7 @@ func (x ServicePolicy) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ServicePolicy.Descriptor instead.
 func (ServicePolicy) EnumDescriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{1}
+	return file_core_proto_rawDescGZIP(), []int{1}
 }
 
 type ShareRecord struct {
@@ -142,7 +145,7 @@ type ShareRecord struct {
 
 func (x *ShareRecord) Reset() {
 	*x = ShareRecord{}
-	mi := &file_meshledger_proto_msgTypes[0]
+	mi := &file_core_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -154,7 +157,7 @@ func (x *ShareRecord) String() string {
 func (*ShareRecord) ProtoMessage() {}
 
 func (x *ShareRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[0]
+	mi := &file_core_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -167,7 +170,7 @@ func (x *ShareRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShareRecord.ProtoReflect.Descriptor instead.
 func (*ShareRecord) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{0}
+	return file_core_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ShareRecord) GetId() []byte {
@@ -285,7 +288,7 @@ type CumulativeTotals struct {
 
 func (x *CumulativeTotals) Reset() {
 	*x = CumulativeTotals{}
-	mi := &file_meshledger_proto_msgTypes[1]
+	mi := &file_core_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -297,7 +300,7 @@ func (x *CumulativeTotals) String() string {
 func (*CumulativeTotals) ProtoMessage() {}
 
 func (x *CumulativeTotals) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[1]
+	mi := &file_core_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -310,7 +313,7 @@ func (x *CumulativeTotals) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CumulativeTotals.ProtoReflect.Descriptor instead.
 func (*CumulativeTotals) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{1}
+	return file_core_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CumulativeTotals) GetCumulativeSent() uint64 {
@@ -341,7 +344,7 @@ type TransferRequest struct {
 
 func (x *TransferRequest) Reset() {
 	*x = TransferRequest{}
-	mi := &file_meshledger_proto_msgTypes[2]
+	mi := &file_core_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -353,7 +356,7 @@ func (x *TransferRequest) String() string {
 func (*TransferRequest) ProtoMessage() {}
 
 func (x *TransferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[2]
+	mi := &file_core_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -366,7 +369,7 @@ func (x *TransferRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransferRequest.ProtoReflect.Descriptor instead.
 func (*TransferRequest) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{2}
+	return file_core_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *TransferRequest) GetRequesterPubkey() []byte {
@@ -427,7 +430,7 @@ type FileMeta struct {
 
 func (x *FileMeta) Reset() {
 	*x = FileMeta{}
-	mi := &file_meshledger_proto_msgTypes[3]
+	mi := &file_core_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -439,7 +442,7 @@ func (x *FileMeta) String() string {
 func (*FileMeta) ProtoMessage() {}
 
 func (x *FileMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[3]
+	mi := &file_core_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -452,7 +455,7 @@ func (x *FileMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileMeta.ProtoReflect.Descriptor instead.
 func (*FileMeta) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{3}
+	return file_core_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *FileMeta) GetFileHash() []byte {
@@ -521,14 +524,14 @@ type Checkpoint struct {
 	Timestamp     int64                  `protobuf:"varint,6,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	DeviceSig     []byte                 `protobuf:"bytes,7,opt,name=device_sig,json=deviceSig,proto3" json:"device_sig,omitempty"`
 	Witnesses     []*CheckpointWitness   `protobuf:"bytes,8,rep,name=witnesses,proto3" json:"witnesses,omitempty"`
-	Confidence    ConfidenceLevel        `protobuf:"varint,9,opt,name=confidence,proto3,enum=meshledger.ConfidenceLevel" json:"confidence,omitempty"`
+	Confidence    ConfidenceLevel        `protobuf:"varint,9,opt,name=confidence,proto3,enum=burntPeanut.ConfidenceLevel" json:"confidence,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Checkpoint) Reset() {
 	*x = Checkpoint{}
-	mi := &file_meshledger_proto_msgTypes[4]
+	mi := &file_core_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -540,7 +543,7 @@ func (x *Checkpoint) String() string {
 func (*Checkpoint) ProtoMessage() {}
 
 func (x *Checkpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[4]
+	mi := &file_core_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -553,7 +556,7 @@ func (x *Checkpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Checkpoint.ProtoReflect.Descriptor instead.
 func (*Checkpoint) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{4}
+	return file_core_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Checkpoint) GetDevicePubkey() []byte {
@@ -630,7 +633,7 @@ type CheckpointWitness struct {
 
 func (x *CheckpointWitness) Reset() {
 	*x = CheckpointWitness{}
-	mi := &file_meshledger_proto_msgTypes[5]
+	mi := &file_core_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -642,7 +645,7 @@ func (x *CheckpointWitness) String() string {
 func (*CheckpointWitness) ProtoMessage() {}
 
 func (x *CheckpointWitness) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[5]
+	mi := &file_core_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -655,7 +658,7 @@ func (x *CheckpointWitness) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckpointWitness.ProtoReflect.Descriptor instead.
 func (*CheckpointWitness) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{5}
+	return file_core_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CheckpointWitness) GetWitnessPubkey() []byte {
@@ -693,7 +696,7 @@ type ForkEvidence struct {
 
 func (x *ForkEvidence) Reset() {
 	*x = ForkEvidence{}
-	mi := &file_meshledger_proto_msgTypes[6]
+	mi := &file_core_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -705,7 +708,7 @@ func (x *ForkEvidence) String() string {
 func (*ForkEvidence) ProtoMessage() {}
 
 func (x *ForkEvidence) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[6]
+	mi := &file_core_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -718,7 +721,7 @@ func (x *ForkEvidence) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForkEvidence.ProtoReflect.Descriptor instead.
 func (*ForkEvidence) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{6}
+	return file_core_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ForkEvidence) GetDevicePubkey() []byte {
@@ -778,7 +781,7 @@ type Balance struct {
 
 func (x *Balance) Reset() {
 	*x = Balance{}
-	mi := &file_meshledger_proto_msgTypes[7]
+	mi := &file_core_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -790,7 +793,7 @@ func (x *Balance) String() string {
 func (*Balance) ProtoMessage() {}
 
 func (x *Balance) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[7]
+	mi := &file_core_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -803,7 +806,7 @@ func (x *Balance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Balance.ProtoReflect.Descriptor instead.
 func (*Balance) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{7}
+	return file_core_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Balance) GetDevicePubkey() []byte {
@@ -869,7 +872,7 @@ type CreditParams struct {
 
 func (x *CreditParams) Reset() {
 	*x = CreditParams{}
-	mi := &file_meshledger_proto_msgTypes[8]
+	mi := &file_core_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -881,7 +884,7 @@ func (x *CreditParams) String() string {
 func (*CreditParams) ProtoMessage() {}
 
 func (x *CreditParams) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[8]
+	mi := &file_core_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -894,7 +897,7 @@ func (x *CreditParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreditParams.ProtoReflect.Descriptor instead.
 func (*CreditParams) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{8}
+	return file_core_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CreditParams) GetDripRate() int64 {
@@ -954,7 +957,7 @@ type PeerInfo struct {
 
 func (x *PeerInfo) Reset() {
 	*x = PeerInfo{}
-	mi := &file_meshledger_proto_msgTypes[9]
+	mi := &file_core_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -966,7 +969,7 @@ func (x *PeerInfo) String() string {
 func (*PeerInfo) ProtoMessage() {}
 
 func (x *PeerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[9]
+	mi := &file_core_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -979,7 +982,7 @@ func (x *PeerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerInfo.ProtoReflect.Descriptor instead.
 func (*PeerInfo) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{9}
+	return file_core_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *PeerInfo) GetPubkey() []byte {
@@ -1044,7 +1047,7 @@ type GossipPayload struct {
 
 func (x *GossipPayload) Reset() {
 	*x = GossipPayload{}
-	mi := &file_meshledger_proto_msgTypes[10]
+	mi := &file_core_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1056,7 +1059,7 @@ func (x *GossipPayload) String() string {
 func (*GossipPayload) ProtoMessage() {}
 
 func (x *GossipPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[10]
+	mi := &file_core_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1069,7 +1072,7 @@ func (x *GossipPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GossipPayload.ProtoReflect.Descriptor instead.
 func (*GossipPayload) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{10}
+	return file_core_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GossipPayload) GetSelfSummary() *PeerInfo {
@@ -1112,7 +1115,7 @@ type HandshakeMsg struct {
 	SessionId              []byte                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	EphemeralPubkey        []byte                 `protobuf:"bytes,2,opt,name=ephemeral_pubkey,json=ephemeralPubkey,proto3" json:"ephemeral_pubkey,omitempty"`
 	IdentityPubkey         []byte                 `protobuf:"bytes,3,opt,name=identity_pubkey,json=identityPubkey,proto3" json:"identity_pubkey,omitempty"`
-	Policy                 ServicePolicy          `protobuf:"varint,4,opt,name=policy,proto3,enum=meshledger.ServicePolicy" json:"policy,omitempty"`
+	Policy                 ServicePolicy          `protobuf:"varint,4,opt,name=policy,proto3,enum=burntPeanut.ServicePolicy" json:"policy,omitempty"`
 	LatestCheckpoint       *Checkpoint            `protobuf:"bytes,5,opt,name=latest_checkpoint,json=latestCheckpoint,proto3" json:"latest_checkpoint,omitempty"`
 	RecordsSinceCheckpoint []*ShareRecord         `protobuf:"bytes,6,rep,name=records_since_checkpoint,json=recordsSinceCheckpoint,proto3" json:"records_since_checkpoint,omitempty"`
 	unknownFields          protoimpl.UnknownFields
@@ -1121,7 +1124,7 @@ type HandshakeMsg struct {
 
 func (x *HandshakeMsg) Reset() {
 	*x = HandshakeMsg{}
-	mi := &file_meshledger_proto_msgTypes[11]
+	mi := &file_core_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1133,7 +1136,7 @@ func (x *HandshakeMsg) String() string {
 func (*HandshakeMsg) ProtoMessage() {}
 
 func (x *HandshakeMsg) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[11]
+	mi := &file_core_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1146,7 +1149,7 @@ func (x *HandshakeMsg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandshakeMsg.ProtoReflect.Descriptor instead.
 func (*HandshakeMsg) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{11}
+	return file_core_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *HandshakeMsg) GetSessionId() []byte {
@@ -1201,7 +1204,7 @@ type ChunkBatch struct {
 
 func (x *ChunkBatch) Reset() {
 	*x = ChunkBatch{}
-	mi := &file_meshledger_proto_msgTypes[12]
+	mi := &file_core_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1213,7 +1216,7 @@ func (x *ChunkBatch) String() string {
 func (*ChunkBatch) ProtoMessage() {}
 
 func (x *ChunkBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[12]
+	mi := &file_core_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1226,7 +1229,7 @@ func (x *ChunkBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChunkBatch.ProtoReflect.Descriptor instead.
 func (*ChunkBatch) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{12}
+	return file_core_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ChunkBatch) GetFileHash() []byte {
@@ -1253,7 +1256,7 @@ type ChunkData struct {
 
 func (x *ChunkData) Reset() {
 	*x = ChunkData{}
-	mi := &file_meshledger_proto_msgTypes[13]
+	mi := &file_core_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1265,7 +1268,7 @@ func (x *ChunkData) String() string {
 func (*ChunkData) ProtoMessage() {}
 
 func (x *ChunkData) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[13]
+	mi := &file_core_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1278,7 +1281,7 @@ func (x *ChunkData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChunkData.ProtoReflect.Descriptor instead.
 func (*ChunkData) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{13}
+	return file_core_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ChunkData) GetChunkIndex() uint32 {
@@ -1312,7 +1315,7 @@ type Envelope struct {
 
 func (x *Envelope) Reset() {
 	*x = Envelope{}
-	mi := &file_meshledger_proto_msgTypes[14]
+	mi := &file_core_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1324,7 +1327,7 @@ func (x *Envelope) String() string {
 func (*Envelope) ProtoMessage() {}
 
 func (x *Envelope) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[14]
+	mi := &file_core_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1337,7 +1340,7 @@ func (x *Envelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Envelope.ProtoReflect.Descriptor instead.
 func (*Envelope) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{14}
+	return file_core_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Envelope) GetPayload() isEnvelope_Payload {
@@ -1454,7 +1457,7 @@ type FileCapability struct {
 
 func (x *FileCapability) Reset() {
 	*x = FileCapability{}
-	mi := &file_meshledger_proto_msgTypes[15]
+	mi := &file_core_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1466,7 +1469,7 @@ func (x *FileCapability) String() string {
 func (*FileCapability) ProtoMessage() {}
 
 func (x *FileCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_meshledger_proto_msgTypes[15]
+	mi := &file_core_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1479,7 +1482,7 @@ func (x *FileCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileCapability.ProtoReflect.Descriptor instead.
 func (*FileCapability) Descriptor() ([]byte, []int) {
-	return file_meshledger_proto_rawDescGZIP(), []int{15}
+	return file_core_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *FileCapability) GetFileHash() []byte {
@@ -1517,12 +1520,12 @@ func (x *FileCapability) GetSignature() []byte {
 	return nil
 }
 
-var File_meshledger_proto protoreflect.FileDescriptor
+var File_core_proto protoreflect.FileDescriptor
 
-const file_meshledger_proto_rawDesc = "" +
+const file_core_proto_rawDesc = "" +
 	"\n" +
-	"\x10meshledger.proto\x12\n" +
-	"meshledger\"\xe6\x04\n" +
+	"\n" +
+	"core.proto\x12\vburntPeanut\"\xe8\x04\n" +
 	"\vShareRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\fR\x02id\x12#\n" +
 	"\rsender_pubkey\x18\x02 \x01(\fR\fsenderPubkey\x12'\n" +
@@ -1531,9 +1534,9 @@ const file_meshledger_proto_rawDesc = "" +
 	"prevSender\x12#\n" +
 	"\rprev_receiver\x18\x05 \x01(\fR\fprevReceiver\x12.\n" +
 	"\x13sender_record_index\x18\x06 \x01(\x04R\x11senderRecordIndex\x122\n" +
-	"\x15receiver_record_index\x18\a \x01(\x04R\x13receiverRecordIndex\x12A\n" +
-	"\rsender_totals\x18\b \x01(\v2\x1c.meshledger.CumulativeTotalsR\fsenderTotals\x12E\n" +
-	"\x0freceiver_totals\x18\t \x01(\v2\x1c.meshledger.CumulativeTotalsR\x0ereceiverTotals\x12!\n" +
+	"\x15receiver_record_index\x18\a \x01(\x04R\x13receiverRecordIndex\x12B\n" +
+	"\rsender_totals\x18\b \x01(\v2\x1d.burntPeanut.CumulativeTotalsR\fsenderTotals\x12F\n" +
+	"\x0freceiver_totals\x18\t \x01(\v2\x1d.burntPeanut.CumulativeTotalsR\x0ereceiverTotals\x12!\n" +
 	"\frequest_hash\x18\n" +
 	" \x01(\fR\vrequestHash\x12!\n" +
 	"\fchunk_hashes\x18\v \x03(\fR\vchunkHashes\x12\x1f\n" +
@@ -1564,32 +1567,32 @@ const file_meshledger_proto_rawDesc = "" +
 	"\n" +
 	"origin_sig\x18\a \x01(\fR\toriginSig\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\b \x01(\x03R\tcreatedAt\"\x81\x03\n" +
+	"created_at\x18\b \x01(\x03R\tcreatedAt\"\x84\x03\n" +
 	"\n" +
 	"Checkpoint\x12#\n" +
 	"\rdevice_pubkey\x18\x01 \x01(\fR\fdevicePubkey\x12\x1d\n" +
 	"\n" +
 	"chain_head\x18\x02 \x01(\fR\tchainHead\x12!\n" +
-	"\frecord_index\x18\x03 \x01(\x04R\vrecordIndex\x124\n" +
-	"\x06totals\x18\x04 \x01(\v2\x1c.meshledger.CumulativeTotalsR\x06totals\x12\x1f\n" +
+	"\frecord_index\x18\x03 \x01(\x04R\vrecordIndex\x125\n" +
+	"\x06totals\x18\x04 \x01(\v2\x1d.burntPeanut.CumulativeTotalsR\x06totals\x12\x1f\n" +
 	"\vraw_balance\x18\x05 \x01(\x03R\n" +
 	"rawBalance\x12\x1c\n" +
 	"\ttimestamp\x18\x06 \x01(\x03R\ttimestamp\x12\x1d\n" +
 	"\n" +
-	"device_sig\x18\a \x01(\fR\tdeviceSig\x12;\n" +
-	"\twitnesses\x18\b \x03(\v2\x1d.meshledger.CheckpointWitnessR\twitnesses\x12;\n" +
+	"device_sig\x18\a \x01(\fR\tdeviceSig\x12<\n" +
+	"\twitnesses\x18\b \x03(\v2\x1e.burntPeanut.CheckpointWitnessR\twitnesses\x12<\n" +
 	"\n" +
-	"confidence\x18\t \x01(\x0e2\x1b.meshledger.ConfidenceLevelR\n" +
+	"confidence\x18\t \x01(\x0e2\x1c.burntPeanut.ConfidenceLevelR\n" +
 	"confidence\"\x88\x01\n" +
 	"\x11CheckpointWitness\x12%\n" +
 	"\x0ewitness_pubkey\x18\x01 \x01(\fR\rwitnessPubkey\x12\x1f\n" +
 	"\vwitness_sig\x18\x02 \x01(\fR\n" +
 	"witnessSig\x12+\n" +
-	"\x11encounter_cluster\x18\x03 \x01(\tR\x10encounterCluster\"\x88\x02\n" +
+	"\x11encounter_cluster\x18\x03 \x01(\tR\x10encounterCluster\"\x8a\x02\n" +
 	"\fForkEvidence\x12#\n" +
-	"\rdevice_pubkey\x18\x01 \x01(\fR\fdevicePubkey\x122\n" +
-	"\brecord_a\x18\x02 \x01(\v2\x17.meshledger.ShareRecordR\arecordA\x122\n" +
-	"\brecord_b\x18\x03 \x01(\v2\x17.meshledger.ShareRecordR\arecordB\x12'\n" +
+	"\rdevice_pubkey\x18\x01 \x01(\fR\fdevicePubkey\x123\n" +
+	"\brecord_a\x18\x02 \x01(\v2\x18.burntPeanut.ShareRecordR\arecordA\x123\n" +
+	"\brecord_b\x18\x03 \x01(\v2\x18.burntPeanut.ShareRecordR\arecordB\x12'\n" +
 	"\x0freporter_pubkey\x18\x04 \x01(\fR\x0ereporterPubkey\x12!\n" +
 	"\freporter_sig\x18\x05 \x01(\fR\vreporterSig\x12\x1f\n" +
 	"\vdetected_at\x18\x06 \x01(\x03R\n" +
@@ -1612,46 +1615,46 @@ const file_meshledger_proto_rawDesc = "" +
 	"\x11half_life_seconds\x18\x04 \x01(\x03R\x0fhalfLifeSeconds\x12 \n" +
 	"\fper_peer_cap\x18\x05 \x01(\x03R\n" +
 	"perPeerCap\x12#\n" +
-	"\repoch_seconds\x18\x06 \x01(\x03R\fepochSeconds\"\x8a\x02\n" +
+	"\repoch_seconds\x18\x06 \x01(\x03R\fepochSeconds\"\x8b\x02\n" +
 	"\bPeerInfo\x12\x16\n" +
 	"\x06pubkey\x18\x01 \x01(\fR\x06pubkey\x12\x1d\n" +
 	"\n" +
 	"chain_head\x18\x02 \x01(\fR\tchainHead\x12!\n" +
-	"\frecord_index\x18\x03 \x01(\x04R\vrecordIndex\x124\n" +
-	"\x06totals\x18\x04 \x01(\v2\x1c.meshledger.CumulativeTotalsR\x06totals\x12\x1b\n" +
+	"\frecord_index\x18\x03 \x01(\x04R\vrecordIndex\x125\n" +
+	"\x06totals\x18\x04 \x01(\v2\x1d.burntPeanut.CumulativeTotalsR\x06totals\x12\x1b\n" +
 	"\tlast_seen\x18\x05 \x01(\x03R\blastSeen\x12*\n" +
 	"\x11has_fork_evidence\x18\x06 \x01(\bR\x0fhasForkEvidence\x12%\n" +
-	"\x0etransport_type\x18\a \x01(\tR\rtransportType\"\xc4\x02\n" +
-	"\rGossipPayload\x127\n" +
-	"\fself_summary\x18\x01 \x01(\v2\x14.meshledger.PeerInfoR\vselfSummary\x12;\n" +
-	"\x0epeer_summaries\x18\x02 \x03(\v2\x14.meshledger.PeerInfoR\rpeerSummaries\x12=\n" +
-	"\rfork_evidence\x18\x03 \x03(\v2\x18.meshledger.ForkEvidenceR\fforkEvidence\x129\n" +
-	"\rseeding_files\x18\x04 \x03(\v2\x14.meshledger.FileMetaR\fseedingFiles\x12C\n" +
-	"\x11latest_checkpoint\x18\x05 \x01(\v2\x16.meshledger.CheckpointR\x10latestCheckpoint\"\xcc\x02\n" +
+	"\x0etransport_type\x18\a \x01(\tR\rtransportType\"\xc9\x02\n" +
+	"\rGossipPayload\x128\n" +
+	"\fself_summary\x18\x01 \x01(\v2\x15.burntPeanut.PeerInfoR\vselfSummary\x12<\n" +
+	"\x0epeer_summaries\x18\x02 \x03(\v2\x15.burntPeanut.PeerInfoR\rpeerSummaries\x12>\n" +
+	"\rfork_evidence\x18\x03 \x03(\v2\x19.burntPeanut.ForkEvidenceR\fforkEvidence\x12:\n" +
+	"\rseeding_files\x18\x04 \x03(\v2\x15.burntPeanut.FileMetaR\fseedingFiles\x12D\n" +
+	"\x11latest_checkpoint\x18\x05 \x01(\v2\x17.burntPeanut.CheckpointR\x10latestCheckpoint\"\xcf\x02\n" +
 	"\fHandshakeMsg\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\fR\tsessionId\x12)\n" +
 	"\x10ephemeral_pubkey\x18\x02 \x01(\fR\x0fephemeralPubkey\x12'\n" +
-	"\x0fidentity_pubkey\x18\x03 \x01(\fR\x0eidentityPubkey\x121\n" +
-	"\x06policy\x18\x04 \x01(\x0e2\x19.meshledger.ServicePolicyR\x06policy\x12C\n" +
-	"\x11latest_checkpoint\x18\x05 \x01(\v2\x16.meshledger.CheckpointR\x10latestCheckpoint\x12Q\n" +
-	"\x18records_since_checkpoint\x18\x06 \x03(\v2\x17.meshledger.ShareRecordR\x16recordsSinceCheckpoint\"X\n" +
+	"\x0fidentity_pubkey\x18\x03 \x01(\fR\x0eidentityPubkey\x122\n" +
+	"\x06policy\x18\x04 \x01(\x0e2\x1a.burntPeanut.ServicePolicyR\x06policy\x12D\n" +
+	"\x11latest_checkpoint\x18\x05 \x01(\v2\x17.burntPeanut.CheckpointR\x10latestCheckpoint\x12R\n" +
+	"\x18records_since_checkpoint\x18\x06 \x03(\v2\x18.burntPeanut.ShareRecordR\x16recordsSinceCheckpoint\"Y\n" +
 	"\n" +
 	"ChunkBatch\x12\x1b\n" +
-	"\tfile_hash\x18\x01 \x01(\fR\bfileHash\x12-\n" +
-	"\x06chunks\x18\x02 \x03(\v2\x15.meshledger.ChunkDataR\x06chunks\"@\n" +
+	"\tfile_hash\x18\x01 \x01(\fR\bfileHash\x12.\n" +
+	"\x06chunks\x18\x02 \x03(\v2\x16.burntPeanut.ChunkDataR\x06chunks\"@\n" +
 	"\tChunkData\x12\x1f\n" +
 	"\vchunk_index\x18\x01 \x01(\rR\n" +
 	"chunkIndex\x12\x12\n" +
-	"\x04data\x18\x02 \x01(\fR\x04data\"\x88\x03\n" +
-	"\bEnvelope\x128\n" +
-	"\thandshake\x18\x01 \x01(\v2\x18.meshledger.HandshakeMsgH\x00R\thandshake\x12H\n" +
-	"\x10transfer_request\x18\x02 \x01(\v2\x1b.meshledger.TransferRequestH\x00R\x0ftransferRequest\x129\n" +
-	"\vchunk_batch\x18\x03 \x01(\v2\x16.meshledger.ChunkBatchH\x00R\n" +
-	"chunkBatch\x12<\n" +
-	"\fshare_record\x18\x04 \x01(\v2\x17.meshledger.ShareRecordH\x00R\vshareRecord\x123\n" +
-	"\x06gossip\x18\x05 \x01(\v2\x19.meshledger.GossipPayloadH\x00R\x06gossip\x12?\n" +
-	"\rfork_evidence\x18\x06 \x01(\v2\x18.meshledger.ForkEvidenceH\x00R\fforkEvidenceB\t\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\"\x8e\x03\n" +
+	"\bEnvelope\x129\n" +
+	"\thandshake\x18\x01 \x01(\v2\x19.burntPeanut.HandshakeMsgH\x00R\thandshake\x12I\n" +
+	"\x10transfer_request\x18\x02 \x01(\v2\x1c.burntPeanut.TransferRequestH\x00R\x0ftransferRequest\x12:\n" +
+	"\vchunk_batch\x18\x03 \x01(\v2\x17.burntPeanut.ChunkBatchH\x00R\n" +
+	"chunkBatch\x12=\n" +
+	"\fshare_record\x18\x04 \x01(\v2\x18.burntPeanut.ShareRecordH\x00R\vshareRecord\x124\n" +
+	"\x06gossip\x18\x05 \x01(\v2\x1a.burntPeanut.GossipPayloadH\x00R\x06gossip\x12@\n" +
+	"\rfork_evidence\x18\x06 \x01(\v2\x19.burntPeanut.ForkEvidenceH\x00R\fforkEvidenceB\t\n" +
 	"\apayload\"\xa8\x01\n" +
 	"\x0eFileCapability\x12\x1b\n" +
 	"\tfile_hash\x18\x01 \x01(\fR\bfileHash\x12\x1d\n" +
@@ -1672,63 +1675,63 @@ const file_meshledger_proto_rawDesc = "" +
 	"\rPOLICY_STRICT\x10\x02B@Z>github.com/nyshthefantastic/burnt-peanut-network-core/wire/genb\x06proto3"
 
 var (
-	file_meshledger_proto_rawDescOnce sync.Once
-	file_meshledger_proto_rawDescData []byte
+	file_core_proto_rawDescOnce sync.Once
+	file_core_proto_rawDescData []byte
 )
 
-func file_meshledger_proto_rawDescGZIP() []byte {
-	file_meshledger_proto_rawDescOnce.Do(func() {
-		file_meshledger_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_meshledger_proto_rawDesc), len(file_meshledger_proto_rawDesc)))
+func file_core_proto_rawDescGZIP() []byte {
+	file_core_proto_rawDescOnce.Do(func() {
+		file_core_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_core_proto_rawDesc), len(file_core_proto_rawDesc)))
 	})
-	return file_meshledger_proto_rawDescData
+	return file_core_proto_rawDescData
 }
 
-var file_meshledger_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_meshledger_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
-var file_meshledger_proto_goTypes = []any{
-	(ConfidenceLevel)(0),      // 0: meshledger.ConfidenceLevel
-	(ServicePolicy)(0),        // 1: meshledger.ServicePolicy
-	(*ShareRecord)(nil),       // 2: meshledger.ShareRecord
-	(*CumulativeTotals)(nil),  // 3: meshledger.CumulativeTotals
-	(*TransferRequest)(nil),   // 4: meshledger.TransferRequest
-	(*FileMeta)(nil),          // 5: meshledger.FileMeta
-	(*Checkpoint)(nil),        // 6: meshledger.Checkpoint
-	(*CheckpointWitness)(nil), // 7: meshledger.CheckpointWitness
-	(*ForkEvidence)(nil),      // 8: meshledger.ForkEvidence
-	(*Balance)(nil),           // 9: meshledger.Balance
-	(*CreditParams)(nil),      // 10: meshledger.CreditParams
-	(*PeerInfo)(nil),          // 11: meshledger.PeerInfo
-	(*GossipPayload)(nil),     // 12: meshledger.GossipPayload
-	(*HandshakeMsg)(nil),      // 13: meshledger.HandshakeMsg
-	(*ChunkBatch)(nil),        // 14: meshledger.ChunkBatch
-	(*ChunkData)(nil),         // 15: meshledger.ChunkData
-	(*Envelope)(nil),          // 16: meshledger.Envelope
-	(*FileCapability)(nil),    // 17: meshledger.FileCapability
+var file_core_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_core_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_core_proto_goTypes = []any{
+	(ConfidenceLevel)(0),      // 0: burntPeanut.ConfidenceLevel
+	(ServicePolicy)(0),        // 1: burntPeanut.ServicePolicy
+	(*ShareRecord)(nil),       // 2: burntPeanut.ShareRecord
+	(*CumulativeTotals)(nil),  // 3: burntPeanut.CumulativeTotals
+	(*TransferRequest)(nil),   // 4: burntPeanut.TransferRequest
+	(*FileMeta)(nil),          // 5: burntPeanut.FileMeta
+	(*Checkpoint)(nil),        // 6: burntPeanut.Checkpoint
+	(*CheckpointWitness)(nil), // 7: burntPeanut.CheckpointWitness
+	(*ForkEvidence)(nil),      // 8: burntPeanut.ForkEvidence
+	(*Balance)(nil),           // 9: burntPeanut.Balance
+	(*CreditParams)(nil),      // 10: burntPeanut.CreditParams
+	(*PeerInfo)(nil),          // 11: burntPeanut.PeerInfo
+	(*GossipPayload)(nil),     // 12: burntPeanut.GossipPayload
+	(*HandshakeMsg)(nil),      // 13: burntPeanut.HandshakeMsg
+	(*ChunkBatch)(nil),        // 14: burntPeanut.ChunkBatch
+	(*ChunkData)(nil),         // 15: burntPeanut.ChunkData
+	(*Envelope)(nil),          // 16: burntPeanut.Envelope
+	(*FileCapability)(nil),    // 17: burntPeanut.FileCapability
 }
-var file_meshledger_proto_depIdxs = []int32{
-	3,  // 0: meshledger.ShareRecord.sender_totals:type_name -> meshledger.CumulativeTotals
-	3,  // 1: meshledger.ShareRecord.receiver_totals:type_name -> meshledger.CumulativeTotals
-	3,  // 2: meshledger.Checkpoint.totals:type_name -> meshledger.CumulativeTotals
-	7,  // 3: meshledger.Checkpoint.witnesses:type_name -> meshledger.CheckpointWitness
-	0,  // 4: meshledger.Checkpoint.confidence:type_name -> meshledger.ConfidenceLevel
-	2,  // 5: meshledger.ForkEvidence.record_a:type_name -> meshledger.ShareRecord
-	2,  // 6: meshledger.ForkEvidence.record_b:type_name -> meshledger.ShareRecord
-	3,  // 7: meshledger.PeerInfo.totals:type_name -> meshledger.CumulativeTotals
-	11, // 8: meshledger.GossipPayload.self_summary:type_name -> meshledger.PeerInfo
-	11, // 9: meshledger.GossipPayload.peer_summaries:type_name -> meshledger.PeerInfo
-	8,  // 10: meshledger.GossipPayload.fork_evidence:type_name -> meshledger.ForkEvidence
-	5,  // 11: meshledger.GossipPayload.seeding_files:type_name -> meshledger.FileMeta
-	6,  // 12: meshledger.GossipPayload.latest_checkpoint:type_name -> meshledger.Checkpoint
-	1,  // 13: meshledger.HandshakeMsg.policy:type_name -> meshledger.ServicePolicy
-	6,  // 14: meshledger.HandshakeMsg.latest_checkpoint:type_name -> meshledger.Checkpoint
-	2,  // 15: meshledger.HandshakeMsg.records_since_checkpoint:type_name -> meshledger.ShareRecord
-	15, // 16: meshledger.ChunkBatch.chunks:type_name -> meshledger.ChunkData
-	13, // 17: meshledger.Envelope.handshake:type_name -> meshledger.HandshakeMsg
-	4,  // 18: meshledger.Envelope.transfer_request:type_name -> meshledger.TransferRequest
-	14, // 19: meshledger.Envelope.chunk_batch:type_name -> meshledger.ChunkBatch
-	2,  // 20: meshledger.Envelope.share_record:type_name -> meshledger.ShareRecord
-	12, // 21: meshledger.Envelope.gossip:type_name -> meshledger.GossipPayload
-	8,  // 22: meshledger.Envelope.fork_evidence:type_name -> meshledger.ForkEvidence
+var file_core_proto_depIdxs = []int32{
+	3,  // 0: burntPeanut.ShareRecord.sender_totals:type_name -> burntPeanut.CumulativeTotals
+	3,  // 1: burntPeanut.ShareRecord.receiver_totals:type_name -> burntPeanut.CumulativeTotals
+	3,  // 2: burntPeanut.Checkpoint.totals:type_name -> burntPeanut.CumulativeTotals
+	7,  // 3: burntPeanut.Checkpoint.witnesses:type_name -> burntPeanut.CheckpointWitness
+	0,  // 4: burntPeanut.Checkpoint.confidence:type_name -> burntPeanut.ConfidenceLevel
+	2,  // 5: burntPeanut.ForkEvidence.record_a:type_name -> burntPeanut.ShareRecord
+	2,  // 6: burntPeanut.ForkEvidence.record_b:type_name -> burntPeanut.ShareRecord
+	3,  // 7: burntPeanut.PeerInfo.totals:type_name -> burntPeanut.CumulativeTotals
+	11, // 8: burntPeanut.GossipPayload.self_summary:type_name -> burntPeanut.PeerInfo
+	11, // 9: burntPeanut.GossipPayload.peer_summaries:type_name -> burntPeanut.PeerInfo
+	8,  // 10: burntPeanut.GossipPayload.fork_evidence:type_name -> burntPeanut.ForkEvidence
+	5,  // 11: burntPeanut.GossipPayload.seeding_files:type_name -> burntPeanut.FileMeta
+	6,  // 12: burntPeanut.GossipPayload.latest_checkpoint:type_name -> burntPeanut.Checkpoint
+	1,  // 13: burntPeanut.HandshakeMsg.policy:type_name -> burntPeanut.ServicePolicy
+	6,  // 14: burntPeanut.HandshakeMsg.latest_checkpoint:type_name -> burntPeanut.Checkpoint
+	2,  // 15: burntPeanut.HandshakeMsg.records_since_checkpoint:type_name -> burntPeanut.ShareRecord
+	15, // 16: burntPeanut.ChunkBatch.chunks:type_name -> burntPeanut.ChunkData
+	13, // 17: burntPeanut.Envelope.handshake:type_name -> burntPeanut.HandshakeMsg
+	4,  // 18: burntPeanut.Envelope.transfer_request:type_name -> burntPeanut.TransferRequest
+	14, // 19: burntPeanut.Envelope.chunk_batch:type_name -> burntPeanut.ChunkBatch
+	2,  // 20: burntPeanut.Envelope.share_record:type_name -> burntPeanut.ShareRecord
+	12, // 21: burntPeanut.Envelope.gossip:type_name -> burntPeanut.GossipPayload
+	8,  // 22: burntPeanut.Envelope.fork_evidence:type_name -> burntPeanut.ForkEvidence
 	23, // [23:23] is the sub-list for method output_type
 	23, // [23:23] is the sub-list for method input_type
 	23, // [23:23] is the sub-list for extension type_name
@@ -1736,12 +1739,12 @@ var file_meshledger_proto_depIdxs = []int32{
 	0,  // [0:23] is the sub-list for field type_name
 }
 
-func init() { file_meshledger_proto_init() }
-func file_meshledger_proto_init() {
-	if File_meshledger_proto != nil {
+func init() { file_core_proto_init() }
+func file_core_proto_init() {
+	if File_core_proto != nil {
 		return
 	}
-	file_meshledger_proto_msgTypes[14].OneofWrappers = []any{
+	file_core_proto_msgTypes[14].OneofWrappers = []any{
 		(*Envelope_Handshake)(nil),
 		(*Envelope_TransferRequest)(nil),
 		(*Envelope_ChunkBatch)(nil),
@@ -1753,18 +1756,18 @@ func file_meshledger_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_meshledger_proto_rawDesc), len(file_meshledger_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_core_proto_rawDesc), len(file_core_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_meshledger_proto_goTypes,
-		DependencyIndexes: file_meshledger_proto_depIdxs,
-		EnumInfos:         file_meshledger_proto_enumTypes,
-		MessageInfos:      file_meshledger_proto_msgTypes,
+		GoTypes:           file_core_proto_goTypes,
+		DependencyIndexes: file_core_proto_depIdxs,
+		EnumInfos:         file_core_proto_enumTypes,
+		MessageInfos:      file_core_proto_msgTypes,
 	}.Build()
-	File_meshledger_proto = out.File
-	file_meshledger_proto_goTypes = nil
-	file_meshledger_proto_depIdxs = nil
+	File_core_proto = out.File
+	file_core_proto_goTypes = nil
+	file_core_proto_depIdxs = nil
 }
