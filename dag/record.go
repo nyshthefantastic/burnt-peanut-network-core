@@ -6,8 +6,9 @@ import (
 	"github.com/nyshthefantastic/burnt-peanut-network-core/wire"
 )
 
-func SignableBytes(r *wire.CumulativeTotals) []byte                              {}
-func AttachedSenderSigs(r *wire.CumulativeTotals, sig crypto.Signature) [][]byte {}
+func SignableBytes(r *wire.CumulativeTotals) []byte                           {}
+func AttachSenderSig(r *wire.CumulativeTotals, sig crypto.Signature) []byte   {}
+func AttachReceiverSig(r *wire.CumulativeTotals, sig crypto.Signature) []byte {}
 func appendUint64(buf []byte, value uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, value)
