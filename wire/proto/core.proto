@@ -1,8 +1,21 @@
 syntax = "proto3";
 
-package meshledger;
+/*
+this is protobuf package. not GO package.
+*/
+
+package burntPeanut;
 
 option go_package = "github.com/nyshthefantastic/burnt-peanut-network-core/wire/gen";
+
+
+/*
+DEV Note : if any of the types are changed, the go package needs to be regenerated.
+to regenerate the go package, run the following command from the root directory:
+make proto
+
+this will regenerate the go package in the wire/gen directory.
+*/
 
 // ─── Core Record Types ───
 
