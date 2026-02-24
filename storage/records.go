@@ -107,7 +107,7 @@ func (s *Store) GetRecordsBetween(publicKey []byte, fromIndex uint64, toIndex ui
 	if limit <= 0 {
 		return nil, errors.New("limit must be positive")
 	}
-	rows, err := s.reader.Query("SELECT id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig, file_hash, visibility FROM share_records WHERE (sender_pubkey = ? OR receiver_pubkey = ?) AND (sender_record_index <= ? OR receiver_record_index <= ?) ORDER BY timestamp ASC LIMIT ?", publicKey, publicKey, fromIndex, toIndex, limit)
+	rows, err := s.reader.Query("SELECT id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig, file_hash, visibility FROM share_records WHERE (sender_pubkey = ? OR receiver_pubkey = ?) AND (sender_record_index >= ? OR receiver_record_index >= ?) AND (sender_record_index <= ? OR receiver_record_index <= ?) ORDER BY timestamp ASC LIMIT ?", publicKey, publicKey, fromIndex, fromIndex, toIndex, toIndex, limit)
 
 	if err != nil {
 		return nil, err
@@ -154,6 +154,11 @@ func (s *Store) CounterpartyDiversity(devicePublicKey []byte, windowSize int) (m
 	for rows.Next() {
 		var senderPublicKey, receiverPublicKey []byte
 
+		err := rows.Scan(&senderPublicKey, &receiverPublicKey)
+		if err != nil {
+			return nil, err
+		}
+
 		if bytes.Equal(senderPublicKey, devicePublicKey) {
 			counterpartyDiversity[string(receiverPublicKey)]++
 		} else {
@@ -161,6 +166,11 @@ func (s *Store) CounterpartyDiversity(devicePublicKey []byte, windowSize int) (m
 		}
 
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return counterpartyDiversity, nil
 }
 
