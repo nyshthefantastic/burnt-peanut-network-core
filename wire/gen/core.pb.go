@@ -139,6 +139,7 @@ type ShareRecord struct {
 	Timestamp           int64                  `protobuf:"varint,13,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	SenderSig           []byte                 `protobuf:"bytes,14,opt,name=sender_sig,json=senderSig,proto3" json:"sender_sig,omitempty"`
 	ReceiverSig         []byte                 `protobuf:"bytes,15,opt,name=receiver_sig,json=receiverSig,proto3" json:"receiver_sig,omitempty"`
+	FileHash            []byte                 `protobuf:"bytes,16,opt,name=file_hash,json=fileHash,proto3" json:"file_hash,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -274,6 +275,13 @@ func (x *ShareRecord) GetSenderSig() []byte {
 func (x *ShareRecord) GetReceiverSig() []byte {
 	if x != nil {
 		return x.ReceiverSig
+	}
+	return nil
+}
+
+func (x *ShareRecord) GetFileHash() []byte {
+	if x != nil {
+		return x.FileHash
 	}
 	return nil
 }
@@ -1525,7 +1533,7 @@ var File_core_proto protoreflect.FileDescriptor
 const file_core_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"core.proto\x12\vburntPeanut\"\xe8\x04\n" +
+	"core.proto\x12\vburntPeanut\"\x85\x05\n" +
 	"\vShareRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\fR\x02id\x12#\n" +
 	"\rsender_pubkey\x18\x02 \x01(\fR\fsenderPubkey\x12'\n" +
@@ -1545,7 +1553,8 @@ const file_core_proto_rawDesc = "" +
 	"\ttimestamp\x18\r \x01(\x03R\ttimestamp\x12\x1d\n" +
 	"\n" +
 	"sender_sig\x18\x0e \x01(\fR\tsenderSig\x12!\n" +
-	"\freceiver_sig\x18\x0f \x01(\fR\vreceiverSig\"l\n" +
+	"\freceiver_sig\x18\x0f \x01(\fR\vreceiverSig\x12\x1b\n" +
+	"\tfile_hash\x18\x10 \x01(\fR\bfileHash\"l\n" +
 	"\x10CumulativeTotals\x12'\n" +
 	"\x0fcumulative_sent\x18\x01 \x01(\x04R\x0ecumulativeSent\x12/\n" +
 	"\x13cumulative_received\x18\x02 \x01(\x04R\x12cumulativeReceived\"\xd0\x01\n" +
