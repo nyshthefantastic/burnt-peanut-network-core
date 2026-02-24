@@ -17,6 +17,11 @@ make proto
 this will regenerate the go package in the wire/gen directory.
 */
 
+enum Visibility {
+  VISIBILITY_PUBLIC = 0;
+  VISIBILITY_PRIVATE = 1;
+}
+
 // ─── Core Record Types ───
 
 message ShareRecord {
@@ -36,6 +41,8 @@ message ShareRecord {
   bytes sender_sig = 14;
   bytes receiver_sig = 15;
   bytes file_hash = 16;
+  Visibility visibility = 17;
+
 }
 
 message CumulativeTotals {
