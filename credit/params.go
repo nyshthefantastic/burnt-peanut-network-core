@@ -2,47 +2,46 @@ package credit
 
 import (
 	"fmt"
-	"time"
 )
 
 const MB = 1024 * 1024
 
 type CreditParams struct {
 	DripRate        int64
-	DripCap         int64
-	DiversityWindow int
-	HalfLife        time.Duration
+	MaxBalance      int64
+	WindowSize      int32
+	HalfLifeSeconds int64
 	PerPeerCap      int64
-	EpochLen        time.Duration
+	EpochSeconds    int64
 }
 
 func DefaultParams() CreditParams {
 	return CreditParams{
 		DripRate:        2 * MB,
-		DripCap:         50 * MB,
-		DiversityWindow: 50,
-		HalfLife:        time.Hour * 24 * 90,
+		MaxBalance:      50 * MB,
+		WindowSize:      50,
+		HalfLifeSeconds: 7776000, // 90 days
 		PerPeerCap:      500 * MB,
-		EpochLen:        time.Hour * 24 * 7,
+		EpochSeconds:    604800, // 1 week
 	}
 }
 func (c CreditParams) Validate() error {
 	if c.DripRate < 0 {
 		return fmt.Errorf("DripRate cannot be negative")
 	}
-	if c.DripCap < 0 {
-		return fmt.Errorf("DripCap cannot be negative")
+	if c.MaxBalance < 0 {
+		return fmt.Errorf("MaxBalance cannot be negative")
 	}
-	if c.DiversityWindow < 0 {
+	if c.WindowSize < 0 {
 		return fmt.Errorf("DiversityWindow cannot be negative")
 	}
-	if c.HalfLife <= 0 {
+	if c.HalfLifeSeconds <= 0 {
 		return fmt.Errorf("HalfLife cannot be negative")
 	}
 	if c.PerPeerCap < 0 {
 		return fmt.Errorf("PerPeerCap cannot be negative")
 	}
-	if c.EpochLen <= 0 {
+	if c.EpochSeconds <= 0 {
 		return fmt.Errorf("EpochLen cannot be negative")
 	}
 	return nil
