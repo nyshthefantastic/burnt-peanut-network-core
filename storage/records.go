@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"errors"
 
 	pb "github.com/nyshthefantastic/burnt-peanut-network-core/wire/gen"
@@ -31,7 +32,7 @@ but we need to insert it as a sqlite row.
 	chunkHashes := joinHashes(record.ChunkHashes)
 
 	_, err := s.writer.Exec(
-		"INSERT INTO share_records (id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO share_records (id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig, file_hash, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		record.Id,
 		record.SenderPubkey,
 		record.ReceiverPubkey,
@@ -49,6 +50,8 @@ but we need to insert it as a sqlite row.
 		record.Timestamp,
 		record.SenderSig,
 		record.ReceiverSig,
+		record.FileHash,
+		record.Visibility,
 	)
 	
 	return err
@@ -56,7 +59,7 @@ but we need to insert it as a sqlite row.
 
 func (s *Store) GetRecord(id []byte) (*pb.ShareRecord, error) {
 
-	row := s.reader.QueryRow("SELECT id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig FROM share_records WHERE id = ?", id)
+	row := s.reader.QueryRow("SELECT id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig, file_hash, visibility FROM share_records WHERE id = ?", id)
 
 	return scanRecord(row)
 }
@@ -69,7 +72,7 @@ func (s *Store) GetRecordsByDevice(devicePublicKey []byte, fromIndex uint64, lim
 	if limit <= 0 {
 		return nil, errors.New("limit must be positive")
 	}
-	rows, err := s.reader.Query("SELECT id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig FROM share_records WHERE (sender_pubkey = ? OR receiver_pubkey = ?) AND (sender_record_index >= ? OR receiver_record_index >= ?) ORDER BY timestamp ASC LIMIT ?", devicePublicKey, devicePublicKey, fromIndex, fromIndex, limit)
+	rows, err := s.reader.Query("SELECT id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig, file_hash, visibility FROM share_records WHERE (sender_pubkey = ? OR receiver_pubkey = ?) AND (sender_record_index >= ? OR receiver_record_index >= ?) ORDER BY timestamp ASC LIMIT ?", devicePublicKey, devicePublicKey, fromIndex, fromIndex, limit)
 
 	if err != nil {
 		return nil, err
@@ -80,18 +83,86 @@ func (s *Store) GetRecordsByDevice(devicePublicKey []byte, fromIndex uint64, lim
 
 	for rows.Next() {
 		record, err := scanRecord(rows)
-	if err != nil {	
-		return nil, err
-	}
+		if err != nil {
+			return nil, err
+		}
 		records = append(records, record)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return records, nil
 }
 
-func (s *Store) GetLatestRecord() (*pb.ShareRecord, error){}
+func (s *Store) GetRecordsBetween(publicKey []byte, fromIndex uint64, toIndex uint64, limit int) ([]*pb.ShareRecord, error){
+	if publicKey == nil {
+		return nil, errors.New("public key is required")
+	}
 
-func (s *Store) CounterpartyDiversity(){}
+	if fromIndex >= toIndex {
+		return nil, errors.New("from index must be before to index")
+	}
+	if limit <= 0 {
+		return nil, errors.New("limit must be positive")
+	}
+	rows, err := s.reader.Query("SELECT id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig, file_hash, visibility FROM share_records WHERE (sender_pubkey = ? OR receiver_pubkey = ?) AND (sender_record_index <= ? OR receiver_record_index <= ?) ORDER BY timestamp ASC LIMIT ?", publicKey, publicKey, fromIndex, toIndex, limit)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	records := make([]*pb.ShareRecord, 0)
+
+	for rows.Next() {
+		record, err := scanRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (s *Store) GetLatestRecord(publicKey []byte) (*pb.ShareRecord, error) {
+	if publicKey == nil {
+		return nil, errors.New("public key is required")
+	}
+	row := s.reader.QueryRow("SELECT id, sender_pubkey, receiver_pubkey, prev_sender, prev_receiver, sender_record_index, receiver_record_index, sender_cumulative_sent, sender_cumulative_received, receiver_cumulative_sent, receiver_cumulative_received, request_hash, chunk_hashes, bytes_total, timestamp, sender_sig, receiver_sig, file_hash, visibility FROM share_records WHERE sender_pubkey = ? OR receiver_pubkey = ? ORDER BY timestamp DESC LIMIT 1", publicKey, publicKey)
+
+	return scanRecord(row)
+}
+
+func (s *Store) CounterpartyDiversity(devicePublicKey []byte, windowSize int) (map[string]int, error){
+
+	rows, err := s.reader.Query("SELECT sender_pubkey, receiver_pubkey FROM share_records WHERE sender_pubkey = ? OR receiver_pubkey = ? ORDER BY timestamp DESC LIMIT ?", devicePublicKey, devicePublicKey, windowSize)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	counterpartyDiversity := make(map[string]int)
+
+	for rows.Next() {
+		var senderPublicKey, receiverPublicKey []byte
+
+		if bytes.Equal(senderPublicKey, devicePublicKey) {
+			counterpartyDiversity[string(receiverPublicKey)]++
+		} else {
+			counterpartyDiversity[string(senderPublicKey)]++
+		}
+
+	}
+	return counterpartyDiversity, nil
+}
 
 
 // serialize: [][]byte → []byte --> when inserting into the database we need to join the chunk hashes into a single hash.
@@ -134,6 +205,8 @@ func scanRecord(scanner interface{ Scan(...any) error }) (*pb.ShareRecord, error
         &record.Timestamp,
         &record.SenderSig,
         &record.ReceiverSig,
+        &record.FileHash,
+        &record.Visibility,
     )
     if err != nil {
         return nil, err
