@@ -5,7 +5,3 @@ type CumulativeTotals struct {
 	CumulativeReceived uint64
 	RecordIndex        uint64
 }
-
-type ShareRecord struct {
-	
-}
