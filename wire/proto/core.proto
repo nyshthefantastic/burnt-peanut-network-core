@@ -1,0 +1,189 @@
+syntax = "proto3";
+
+/*
+this is protobuf package. not GO package.
+*/
+
+package burntPeanut;
+
+option go_package = "github.com/nyshthefantastic/burnt-peanut-network-core/wire/gen";
+
+
+/*
+DEV Note : if any of the types are changed, the go package needs to be regenerated.
+to regenerate the go package, run the following command from the root directory:
+make proto
+
+this will regenerate the go package in the wire/gen directory.
+*/
+
+// ─── Core Record Types ───
+
+message ShareRecord {
+  bytes id = 1;
+  bytes sender_pubkey = 2;
+  bytes receiver_pubkey = 3;
+  bytes prev_sender = 4;
+  bytes prev_receiver = 5;
+  uint64 sender_record_index = 6;
+  uint64 receiver_record_index = 7;
+  CumulativeTotals sender_totals = 8;
+  CumulativeTotals receiver_totals = 9;
+  bytes request_hash = 10;
+  repeated bytes chunk_hashes = 11;
+  uint64 bytes_total = 12;
+  int64 timestamp = 13;
+  bytes sender_sig = 14;
+  bytes receiver_sig = 15;
+}
+
+message CumulativeTotals {
+  uint64 cumulative_sent = 1;
+  uint64 cumulative_received = 2;
+}
+
+message TransferRequest {
+  bytes requester_pubkey = 1;
+  bytes file_hash = 2;
+  repeated uint32 chunk_indices = 3;
+  bytes nonce = 4;
+  int64 timestamp = 5;
+  bytes signature = 6;
+}
+
+message FileMeta {
+  bytes file_hash = 1;
+  string file_name = 2;
+  uint64 file_size = 3;
+  uint64 chunk_size = 4;
+  repeated bytes chunk_hashes = 5;
+  bytes origin_pubkey = 6;
+  bytes origin_sig = 7;
+  int64 created_at = 8;
+}
+
+// ─── Chain + Fork Types ───
+
+message Checkpoint {
+  bytes device_pubkey = 1;
+  bytes chain_head = 2;
+  uint64 record_index = 3;
+  CumulativeTotals totals = 4;
+  int64 raw_balance = 5;
+  int64 timestamp = 6;
+  bytes device_sig = 7;
+  repeated CheckpointWitness witnesses = 8;
+  ConfidenceLevel confidence = 9;
+}
+
+message CheckpointWitness {
+  bytes witness_pubkey = 1;
+  bytes witness_sig = 2;
+  string encounter_cluster = 3;
+}
+
+enum ConfidenceLevel {
+  CONFIDENCE_UNKNOWN = 0;
+  CONFIDENCE_LOW = 1;
+  CONFIDENCE_HIGH = 2;
+}
+
+message ForkEvidence {
+  bytes device_pubkey = 1;
+  ShareRecord record_a = 2;
+  ShareRecord record_b = 3;
+  bytes reporter_pubkey = 4;
+  bytes reporter_sig = 5;
+  int64 detected_at = 6;
+}
+
+// ─── Credit Types ───
+
+message Balance {
+  bytes device_pubkey = 1;
+  int64 drip_allowance = 2;
+  int64 diversity_weighted_credit = 3;
+  int64 cumulative_received = 4;
+  int64 decay_penalty = 5;
+  int64 effective_balance = 6;
+  int64 computed_at = 7;
+}
+
+message CreditParams {
+  int64 drip_rate = 1;
+  int64 max_balance = 2;
+  int32 window_size = 3;
+  int64 half_life_seconds = 4;
+  int64 per_peer_cap = 5;
+  int64 epoch_seconds = 6;
+}
+
+// ─── Network Types ───
+
+message PeerInfo {
+  bytes pubkey = 1;
+  bytes chain_head = 2;
+  uint64 record_index = 3;
+  CumulativeTotals totals = 4;
+  int64 last_seen = 5;
+  bool has_fork_evidence = 6;
+  string transport_type = 7;
+}
+
+message GossipPayload {
+  PeerInfo self_summary = 1;
+  repeated PeerInfo peer_summaries = 2;
+  repeated ForkEvidence fork_evidence = 3;
+  repeated FileMeta seeding_files = 4;
+  Checkpoint latest_checkpoint = 5;
+}
+
+// ─── Transport Types ───
+
+message HandshakeMsg {
+  bytes session_id = 1;
+  bytes ephemeral_pubkey = 2;
+  bytes identity_pubkey = 3;
+  ServicePolicy policy = 4;
+  Checkpoint latest_checkpoint = 5;
+  repeated ShareRecord records_since_checkpoint = 6;
+}
+
+enum ServicePolicy {
+  POLICY_NONE = 0;
+  POLICY_LIGHT = 1;
+  POLICY_STRICT = 2;
+}
+
+message ChunkBatch {
+  bytes file_hash = 1;
+  repeated ChunkData chunks = 2;
+}
+
+message ChunkData {
+  uint32 chunk_index = 1;
+  bytes data = 2;
+}
+
+// ─── Envelope (top-level framing) ───
+
+message Envelope {
+  oneof payload {
+    HandshakeMsg handshake = 1;
+    TransferRequest transfer_request = 2;
+    ChunkBatch chunk_batch = 3;
+    ShareRecord share_record = 4;
+    GossipPayload gossip = 5;
+    ForkEvidence fork_evidence = 6;
+  }
+}
+
+// ─── Capability Types ───
+
+message FileCapability {
+  bytes file_hash = 1;
+  bytes granted_to = 2;
+  bytes granted_by = 3;
+  int64 expires_at = 4;
+  bytes signature = 5;
+}
