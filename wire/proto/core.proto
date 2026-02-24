@@ -35,6 +35,7 @@ message ShareRecord {
   int64 timestamp = 13;
   bytes sender_sig = 14;
   bytes receiver_sig = 15;
+  bytes file_hash = 16;
 }
 
 message CumulativeTotals {
