@@ -24,6 +24,52 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type Visibility int32
+
+const (
+	Visibility_VISIBILITY_PUBLIC  Visibility = 0
+	Visibility_VISIBILITY_PRIVATE Visibility = 1
+)
+
+// Enum value maps for Visibility.
+var (
+	Visibility_name = map[int32]string{
+		0: "VISIBILITY_PUBLIC",
+		1: "VISIBILITY_PRIVATE",
+	}
+	Visibility_value = map[string]int32{
+		"VISIBILITY_PUBLIC":  0,
+		"VISIBILITY_PRIVATE": 1,
+	}
+)
+
+func (x Visibility) Enum() *Visibility {
+	p := new(Visibility)
+	*p = x
+	return p
+}
+
+func (x Visibility) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Visibility) Descriptor() protoreflect.EnumDescriptor {
+	return file_core_proto_enumTypes[0].Descriptor()
+}
+
+func (Visibility) Type() protoreflect.EnumType {
+	return &file_core_proto_enumTypes[0]
+}
+
+func (x Visibility) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Visibility.Descriptor instead.
+func (Visibility) EnumDescriptor() ([]byte, []int) {
+	return file_core_proto_rawDescGZIP(), []int{0}
+}
+
 type ConfidenceLevel int32
 
 const (
@@ -57,11 +103,11 @@ func (x ConfidenceLevel) String() string {
 }
 
 func (ConfidenceLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_core_proto_enumTypes[0].Descriptor()
+	return file_core_proto_enumTypes[1].Descriptor()
 }
 
 func (ConfidenceLevel) Type() protoreflect.EnumType {
-	return &file_core_proto_enumTypes[0]
+	return &file_core_proto_enumTypes[1]
 }
 
 func (x ConfidenceLevel) Number() protoreflect.EnumNumber {
@@ -70,7 +116,7 @@ func (x ConfidenceLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ConfidenceLevel.Descriptor instead.
 func (ConfidenceLevel) EnumDescriptor() ([]byte, []int) {
-	return file_core_proto_rawDescGZIP(), []int{0}
+	return file_core_proto_rawDescGZIP(), []int{1}
 }
 
 type ServicePolicy int32
@@ -106,11 +152,11 @@ func (x ServicePolicy) String() string {
 }
 
 func (ServicePolicy) Descriptor() protoreflect.EnumDescriptor {
-	return file_core_proto_enumTypes[1].Descriptor()
+	return file_core_proto_enumTypes[2].Descriptor()
 }
 
 func (ServicePolicy) Type() protoreflect.EnumType {
-	return &file_core_proto_enumTypes[1]
+	return &file_core_proto_enumTypes[2]
 }
 
 func (x ServicePolicy) Number() protoreflect.EnumNumber {
@@ -119,7 +165,7 @@ func (x ServicePolicy) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ServicePolicy.Descriptor instead.
 func (ServicePolicy) EnumDescriptor() ([]byte, []int) {
-	return file_core_proto_rawDescGZIP(), []int{1}
+	return file_core_proto_rawDescGZIP(), []int{2}
 }
 
 type ShareRecord struct {
@@ -139,6 +185,8 @@ type ShareRecord struct {
 	Timestamp           int64                  `protobuf:"varint,13,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	SenderSig           []byte                 `protobuf:"bytes,14,opt,name=sender_sig,json=senderSig,proto3" json:"sender_sig,omitempty"`
 	ReceiverSig         []byte                 `protobuf:"bytes,15,opt,name=receiver_sig,json=receiverSig,proto3" json:"receiver_sig,omitempty"`
+	FileHash            []byte                 `protobuf:"bytes,16,opt,name=file_hash,json=fileHash,proto3" json:"file_hash,omitempty"`
+	Visibility          Visibility             `protobuf:"varint,17,opt,name=visibility,proto3,enum=burntPeanut.Visibility" json:"visibility,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -276,6 +324,20 @@ func (x *ShareRecord) GetReceiverSig() []byte {
 		return x.ReceiverSig
 	}
 	return nil
+}
+
+func (x *ShareRecord) GetFileHash() []byte {
+	if x != nil {
+		return x.FileHash
+	}
+	return nil
+}
+
+func (x *ShareRecord) GetVisibility() Visibility {
+	if x != nil {
+		return x.Visibility
+	}
+	return Visibility_VISIBILITY_PUBLIC
 }
 
 type CumulativeTotals struct {
@@ -1525,7 +1587,7 @@ var File_core_proto protoreflect.FileDescriptor
 const file_core_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"core.proto\x12\vburntPeanut\"\xe8\x04\n" +
+	"core.proto\x12\vburntPeanut\"\xbe\x05\n" +
 	"\vShareRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\fR\x02id\x12#\n" +
 	"\rsender_pubkey\x18\x02 \x01(\fR\fsenderPubkey\x12'\n" +
@@ -1545,7 +1607,11 @@ const file_core_proto_rawDesc = "" +
 	"\ttimestamp\x18\r \x01(\x03R\ttimestamp\x12\x1d\n" +
 	"\n" +
 	"sender_sig\x18\x0e \x01(\fR\tsenderSig\x12!\n" +
-	"\freceiver_sig\x18\x0f \x01(\fR\vreceiverSig\"l\n" +
+	"\freceiver_sig\x18\x0f \x01(\fR\vreceiverSig\x12\x1b\n" +
+	"\tfile_hash\x18\x10 \x01(\fR\bfileHash\x127\n" +
+	"\n" +
+	"visibility\x18\x11 \x01(\x0e2\x17.burntPeanut.VisibilityR\n" +
+	"visibility\"l\n" +
 	"\x10CumulativeTotals\x12'\n" +
 	"\x0fcumulative_sent\x18\x01 \x01(\x04R\x0ecumulativeSent\x12/\n" +
 	"\x13cumulative_received\x18\x02 \x01(\x04R\x12cumulativeReceived\"\xd0\x01\n" +
@@ -1664,7 +1730,11 @@ const file_core_proto_rawDesc = "" +
 	"granted_by\x18\x03 \x01(\fR\tgrantedBy\x12\x1d\n" +
 	"\n" +
 	"expires_at\x18\x04 \x01(\x03R\texpiresAt\x12\x1c\n" +
-	"\tsignature\x18\x05 \x01(\fR\tsignature*R\n" +
+	"\tsignature\x18\x05 \x01(\fR\tsignature*;\n" +
+	"\n" +
+	"Visibility\x12\x15\n" +
+	"\x11VISIBILITY_PUBLIC\x10\x00\x12\x16\n" +
+	"\x12VISIBILITY_PRIVATE\x10\x01*R\n" +
 	"\x0fConfidenceLevel\x12\x16\n" +
 	"\x12CONFIDENCE_UNKNOWN\x10\x00\x12\x12\n" +
 	"\x0eCONFIDENCE_LOW\x10\x01\x12\x13\n" +
@@ -1686,57 +1756,59 @@ func file_core_proto_rawDescGZIP() []byte {
 	return file_core_proto_rawDescData
 }
 
-var file_core_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_core_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_core_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_core_proto_goTypes = []any{
-	(ConfidenceLevel)(0),      // 0: burntPeanut.ConfidenceLevel
-	(ServicePolicy)(0),        // 1: burntPeanut.ServicePolicy
-	(*ShareRecord)(nil),       // 2: burntPeanut.ShareRecord
-	(*CumulativeTotals)(nil),  // 3: burntPeanut.CumulativeTotals
-	(*TransferRequest)(nil),   // 4: burntPeanut.TransferRequest
-	(*FileMeta)(nil),          // 5: burntPeanut.FileMeta
-	(*Checkpoint)(nil),        // 6: burntPeanut.Checkpoint
-	(*CheckpointWitness)(nil), // 7: burntPeanut.CheckpointWitness
-	(*ForkEvidence)(nil),      // 8: burntPeanut.ForkEvidence
-	(*Balance)(nil),           // 9: burntPeanut.Balance
-	(*CreditParams)(nil),      // 10: burntPeanut.CreditParams
-	(*PeerInfo)(nil),          // 11: burntPeanut.PeerInfo
-	(*GossipPayload)(nil),     // 12: burntPeanut.GossipPayload
-	(*HandshakeMsg)(nil),      // 13: burntPeanut.HandshakeMsg
-	(*ChunkBatch)(nil),        // 14: burntPeanut.ChunkBatch
-	(*ChunkData)(nil),         // 15: burntPeanut.ChunkData
-	(*Envelope)(nil),          // 16: burntPeanut.Envelope
-	(*FileCapability)(nil),    // 17: burntPeanut.FileCapability
+	(Visibility)(0),           // 0: burntPeanut.Visibility
+	(ConfidenceLevel)(0),      // 1: burntPeanut.ConfidenceLevel
+	(ServicePolicy)(0),        // 2: burntPeanut.ServicePolicy
+	(*ShareRecord)(nil),       // 3: burntPeanut.ShareRecord
+	(*CumulativeTotals)(nil),  // 4: burntPeanut.CumulativeTotals
+	(*TransferRequest)(nil),   // 5: burntPeanut.TransferRequest
+	(*FileMeta)(nil),          // 6: burntPeanut.FileMeta
+	(*Checkpoint)(nil),        // 7: burntPeanut.Checkpoint
+	(*CheckpointWitness)(nil), // 8: burntPeanut.CheckpointWitness
+	(*ForkEvidence)(nil),      // 9: burntPeanut.ForkEvidence
+	(*Balance)(nil),           // 10: burntPeanut.Balance
+	(*CreditParams)(nil),      // 11: burntPeanut.CreditParams
+	(*PeerInfo)(nil),          // 12: burntPeanut.PeerInfo
+	(*GossipPayload)(nil),     // 13: burntPeanut.GossipPayload
+	(*HandshakeMsg)(nil),      // 14: burntPeanut.HandshakeMsg
+	(*ChunkBatch)(nil),        // 15: burntPeanut.ChunkBatch
+	(*ChunkData)(nil),         // 16: burntPeanut.ChunkData
+	(*Envelope)(nil),          // 17: burntPeanut.Envelope
+	(*FileCapability)(nil),    // 18: burntPeanut.FileCapability
 }
 var file_core_proto_depIdxs = []int32{
-	3,  // 0: burntPeanut.ShareRecord.sender_totals:type_name -> burntPeanut.CumulativeTotals
-	3,  // 1: burntPeanut.ShareRecord.receiver_totals:type_name -> burntPeanut.CumulativeTotals
-	3,  // 2: burntPeanut.Checkpoint.totals:type_name -> burntPeanut.CumulativeTotals
-	7,  // 3: burntPeanut.Checkpoint.witnesses:type_name -> burntPeanut.CheckpointWitness
-	0,  // 4: burntPeanut.Checkpoint.confidence:type_name -> burntPeanut.ConfidenceLevel
-	2,  // 5: burntPeanut.ForkEvidence.record_a:type_name -> burntPeanut.ShareRecord
-	2,  // 6: burntPeanut.ForkEvidence.record_b:type_name -> burntPeanut.ShareRecord
-	3,  // 7: burntPeanut.PeerInfo.totals:type_name -> burntPeanut.CumulativeTotals
-	11, // 8: burntPeanut.GossipPayload.self_summary:type_name -> burntPeanut.PeerInfo
-	11, // 9: burntPeanut.GossipPayload.peer_summaries:type_name -> burntPeanut.PeerInfo
-	8,  // 10: burntPeanut.GossipPayload.fork_evidence:type_name -> burntPeanut.ForkEvidence
-	5,  // 11: burntPeanut.GossipPayload.seeding_files:type_name -> burntPeanut.FileMeta
-	6,  // 12: burntPeanut.GossipPayload.latest_checkpoint:type_name -> burntPeanut.Checkpoint
-	1,  // 13: burntPeanut.HandshakeMsg.policy:type_name -> burntPeanut.ServicePolicy
-	6,  // 14: burntPeanut.HandshakeMsg.latest_checkpoint:type_name -> burntPeanut.Checkpoint
-	2,  // 15: burntPeanut.HandshakeMsg.records_since_checkpoint:type_name -> burntPeanut.ShareRecord
-	15, // 16: burntPeanut.ChunkBatch.chunks:type_name -> burntPeanut.ChunkData
-	13, // 17: burntPeanut.Envelope.handshake:type_name -> burntPeanut.HandshakeMsg
-	4,  // 18: burntPeanut.Envelope.transfer_request:type_name -> burntPeanut.TransferRequest
-	14, // 19: burntPeanut.Envelope.chunk_batch:type_name -> burntPeanut.ChunkBatch
-	2,  // 20: burntPeanut.Envelope.share_record:type_name -> burntPeanut.ShareRecord
-	12, // 21: burntPeanut.Envelope.gossip:type_name -> burntPeanut.GossipPayload
-	8,  // 22: burntPeanut.Envelope.fork_evidence:type_name -> burntPeanut.ForkEvidence
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	4,  // 0: burntPeanut.ShareRecord.sender_totals:type_name -> burntPeanut.CumulativeTotals
+	4,  // 1: burntPeanut.ShareRecord.receiver_totals:type_name -> burntPeanut.CumulativeTotals
+	0,  // 2: burntPeanut.ShareRecord.visibility:type_name -> burntPeanut.Visibility
+	4,  // 3: burntPeanut.Checkpoint.totals:type_name -> burntPeanut.CumulativeTotals
+	8,  // 4: burntPeanut.Checkpoint.witnesses:type_name -> burntPeanut.CheckpointWitness
+	1,  // 5: burntPeanut.Checkpoint.confidence:type_name -> burntPeanut.ConfidenceLevel
+	3,  // 6: burntPeanut.ForkEvidence.record_a:type_name -> burntPeanut.ShareRecord
+	3,  // 7: burntPeanut.ForkEvidence.record_b:type_name -> burntPeanut.ShareRecord
+	4,  // 8: burntPeanut.PeerInfo.totals:type_name -> burntPeanut.CumulativeTotals
+	12, // 9: burntPeanut.GossipPayload.self_summary:type_name -> burntPeanut.PeerInfo
+	12, // 10: burntPeanut.GossipPayload.peer_summaries:type_name -> burntPeanut.PeerInfo
+	9,  // 11: burntPeanut.GossipPayload.fork_evidence:type_name -> burntPeanut.ForkEvidence
+	6,  // 12: burntPeanut.GossipPayload.seeding_files:type_name -> burntPeanut.FileMeta
+	7,  // 13: burntPeanut.GossipPayload.latest_checkpoint:type_name -> burntPeanut.Checkpoint
+	2,  // 14: burntPeanut.HandshakeMsg.policy:type_name -> burntPeanut.ServicePolicy
+	7,  // 15: burntPeanut.HandshakeMsg.latest_checkpoint:type_name -> burntPeanut.Checkpoint
+	3,  // 16: burntPeanut.HandshakeMsg.records_since_checkpoint:type_name -> burntPeanut.ShareRecord
+	16, // 17: burntPeanut.ChunkBatch.chunks:type_name -> burntPeanut.ChunkData
+	14, // 18: burntPeanut.Envelope.handshake:type_name -> burntPeanut.HandshakeMsg
+	5,  // 19: burntPeanut.Envelope.transfer_request:type_name -> burntPeanut.TransferRequest
+	15, // 20: burntPeanut.Envelope.chunk_batch:type_name -> burntPeanut.ChunkBatch
+	3,  // 21: burntPeanut.Envelope.share_record:type_name -> burntPeanut.ShareRecord
+	13, // 22: burntPeanut.Envelope.gossip:type_name -> burntPeanut.GossipPayload
+	9,  // 23: burntPeanut.Envelope.fork_evidence:type_name -> burntPeanut.ForkEvidence
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_core_proto_init() }
@@ -1757,7 +1829,7 @@ func file_core_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_core_proto_rawDesc), len(file_core_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,
