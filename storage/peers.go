@@ -11,33 +11,8 @@ func (s *Store) UpsertPeer(peer *pb.PeerInfo) error{
 	if peer == nil {
 		return errors.New("peer is required")
 	}
-
-	var cumulativeSent, cumulativeReceived uint64
+	_, err := s.writer.Exec("INSERT INTO peers (pubkey, chain_head, record_index, cumulative_sent, cumulative_received, last_seen, has_fork_evidence, transport_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pubkey) DO UPDATE SET chain_head = ?, record_index = ?, cumulative_sent = ?, cumulative_received = ?, last_seen = ?, has_fork_evidence = ?, transport_type = ?", peer.Pubkey, peer.ChainHead, peer.RecordIndex, peer.Totals.CumulativeSent, peer.Totals.CumulativeReceived, peer.LastSeen, peer.HasForkEvidence, peer.TransportType, peer.ChainHead, peer.RecordIndex, peer.Totals.CumulativeSent, peer.Totals.CumulativeReceived, peer.LastSeen, peer.HasForkEvidence, peer.TransportType)
 	
-	if peer.Totals != nil {
-		cumulativeSent = peer.Totals.CumulativeSent
-		cumulativeReceived = peer.Totals.CumulativeReceived
-	}
-
-
-	// _, err := s.writer.Exec("INSERT INTO peers (pubkey, chain_head, record_index, cumulative_sent, cumulative_received, last_seen, has_fork_evidence, transport_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(pubkey) DO UPDATE SET chain_head = ?, record_index = ?, cumulative_sent = ?, cumulative_received = ?, last_seen = ?, has_fork_evidence = ?, transport_type = ?", peer.Pubkey, peer.ChainHead, peer.RecordIndex, cumulativeSent, cumulativeReceived, peer.LastSeen, peer.HasForkEvidence, peer.TransportType, peer.ChainHead, peer.RecordIndex, cumulativeSent, cumulativeReceived, peer.LastSeen, peer.HasForkEvidence, peer.TransportType)
-
-	_, err := s.writer.Exec(`
-    INSERT INTO peers (pubkey, chain_head, record_index, cumulative_sent, cumulative_received, last_seen, has_fork_evidence, transport_type) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?) 
-    ON CONFLICT(pubkey) DO UPDATE SET 
-        chain_head = excluded.chain_head,
-        record_index = excluded.record_index,
-        cumulative_sent = excluded.cumulative_sent,
-        cumulative_received = excluded.cumulative_received,
-        last_seen = excluded.last_seen,
-        has_fork_evidence = excluded.has_fork_evidence,
-        transport_type = excluded.transport_type`,
-    peer.Pubkey, peer.ChainHead, peer.RecordIndex,
-    cumulativeSent, cumulativeReceived,
-    peer.LastSeen, peer.HasForkEvidence, peer.TransportType,
-)
-
 	if err != nil {
 		return err
 	}
@@ -87,10 +62,13 @@ func (s *Store) EvictLRU(limit int) error{
 		return errors.New("limit must be positive")
 	}
 	_, err := s.writer.Exec("DELETE FROM peers WHERE pubkey NOT IN (SELECT pubkey FROM peers ORDER BY last_seen DESC LIMIT ?)", limit)
-
 	if err != nil {
 		return err
 	}
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

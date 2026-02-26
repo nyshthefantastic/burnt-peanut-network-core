@@ -7,10 +7,10 @@ func ComputeDripAllowance(createdAt time.Time, now time.Time, params CreditParam
 		return 0
 	}
 	days := now.Sub(createdAt).Hours() / 24.0
-	drip := days * float64(params.DripCap)
+	drip := days * float64(params.MaxBalance)
 
-	if drip > float64(params.DripCap) {
-		drip = float64(params.DripCap)
+	if drip > float64(params.MaxBalance) {
+		drip = float64(params.MaxBalance)
 	}
 
 	if drip < 0 {
