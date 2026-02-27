@@ -7,7 +7,20 @@ import (
 )
 
 
-func (s *Store) InsertFileMeta(file *pb.FileMeta) error{}
+func (s *Store) InsertFileMeta(file *pb.FileMeta) error{
+	if file == nil {
+		return errors.New("file is required")
+	}
+
+	chunkHashes := joinHashes(file.ChunkHashes)
+
+	_, err := s.writer.Exec("INSERT INTO files (file_hash, file_name, file_size, chunk_size, chunk_hashes, origin_pubkey, origin_sig, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", file.FileHash, file.FileName, file.FileSize, file.ChunkSize, chunkHashes, file.OriginPubkey, file.OriginSig, file.CreatedAt)
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 
 func (s *Store) GetFileMeta(fileHash []byte) (*pb.FileMeta, error){
