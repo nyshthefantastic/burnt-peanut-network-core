@@ -104,13 +104,16 @@ typedef struct {
     ml_notify_gossip_received_fn    notify_gossip_received;
 } MLCallbacks;
 
-/* ─── Node Lifecycle ─── */
+/* ─── Function Declarations ─── */
+/* Guarded so CGo can skip them (it generates its own from //export) */
 
+#ifndef CORE_GO_EXPORTS
+
+/* Node Lifecycle */
 MLNode  ml_node_create(const char* db_path, MLCallbacks callbacks);
 void    ml_node_destroy(MLNode node);
 
-/* ─── User Actions ─── */
-
+/* User Actions */
 MLResult ml_request_file(MLNode node, const uint8_t* file_hash, int32_t len);
 MLResult ml_get_balance(MLNode node);
 MLResult ml_get_chain_summary(MLNode node);
@@ -120,20 +123,20 @@ MLResult ml_get_file_index(MLNode node);
 int32_t  ml_share_file(MLNode node, const uint8_t* file_data, int32_t len,
                         const char* file_name);
 
-/* ─── Transport Events ─── */
-
+/* Transport Events */
 void ml_on_peer_discovered(MLNode node, uintptr_t peer_id);
 void ml_on_peer_connected(MLNode node, uintptr_t peer_id);
 void ml_on_peer_disconnected(MLNode node, uintptr_t peer_id);
 void ml_on_data_received(MLNode node, uintptr_t peer_id,
                           const uint8_t* data, int32_t len);
 
-/* ─── Memory ─── */
-
+/* Memory */
 void ml_free(void* ptr);
+
+#endif /* CORE_GO_EXPORTS */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /* CORE_H */
