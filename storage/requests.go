@@ -57,7 +57,7 @@ func (s *Store) GetRequest(hash []byte) (*pb.TransferRequest, error) {
 
 /* maxAge is in seconds. Delete requests where timestamp is older than the cutoff value which is 5 minutes according to our design.
 
-max age - current time in seconds - 300 seconds (5 minutes)
+max age = current time in seconds - 300 seconds (5 minutes)
 
 */
 
