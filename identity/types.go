@@ -13,3 +13,20 @@ type SuccessionRecord struct {
     Timestamp int64
     Signature []byte
 }
+
+
+type AttestationType uint8
+
+const (
+    AttestationUnknown AttestationType = iota;
+    AttestationAndroid 
+    AttestationIOS     
+)
+
+
+type AttestationEnvelope struct {
+    Type          AttestationType
+    Timestamp     int64
+    DevicePubkey  []byte
+    PlatformBlob  []byte  
+}
