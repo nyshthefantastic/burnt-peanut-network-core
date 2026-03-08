@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/binary"
 	"errors"
+	"time"
 
 	"github.com/nyshthefantastic/burnt-peanut-network-core/crypto"
 
@@ -55,17 +56,19 @@ func (s *Store) GetRequest(hash []byte) (*pb.TransferRequest, error) {
 	return scanRequest(row)
 }
 
-/* maxAge is in seconds. Delete requests where timestamp is older than the cutoff value which is 5 minutes according to our design.
+/* maxAge is in seconds. Delete requests where timestamp is older than the mac age value which is 5 minutes according to our design.
 
-max age = current time in seconds - 300 seconds (5 minutes)
+cutoff = current time in seconds - maxAgeSeconds
 
 */
 
 func (s *Store) ExpireOldRequests(maxAge int64) error {
 
-	_, err := s.writer.Exec(
-		"DELETE FROM transfer_requests WHERE timestamp < ?", maxAge)
-	return err
+	cutoff := time.Now().Unix() - maxAge
+
+    _, err := s.writer.Exec(
+        "DELETE FROM transfer_requests WHERE timestamp < ?", cutoff)
+    return err
 }
 
 func (s *Store) UpdateStatus(hash []byte, status string) error {
