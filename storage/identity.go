@@ -7,6 +7,7 @@ import (
 // we dont  have this in proto as its only used in the storage layer.
 type Identity struct {
     Pubkey           []byte
+    PrivateKey       []byte
     CreatedAt        int64
     ChainHead        []byte
     ChainIndex       uint64
@@ -15,14 +16,14 @@ type Identity struct {
 }
 
 // hardcoding the id to 1 as we only have one identity per device.
-func (s *Store) InitIdentity(pubkey []byte, createdAt int64) error {
+func (s *Store) InitIdentity(pubkey []byte, privateKey []byte, createdAt int64) error {
 	if pubkey == nil {
 		return errors.New("pubkey is required")
 	}
 	if createdAt <= 0 {
 		return errors.New("createdAt is required")
 	}
-	_, err := s.writer.Exec("INSERT INTO identity (id, pubkey, created_at) VALUES (1, ?, ?)", pubkey, createdAt)
+	_, err := s.writer.Exec("INSERT INTO identity (id, pubkey, private_key, created_at) VALUES (1, ?, ?, ?)", pubkey, privateKey, createdAt)
 	return err
 }
 
