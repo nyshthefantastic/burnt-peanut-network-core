@@ -156,7 +156,9 @@ CREATE TABLE IF NOT EXISTS share_records (
     bytes_total INTEGER NOT NULL,
     timestamp INTEGER NOT NULL,
     sender_sig BLOB NOT NULL,
-    receiver_sig BLOB NOT NULL
+    receiver_sig BLOB NOT NULL,
+    file_hash BLOB NOT NULL,
+    visibility INTEGER NOT NULL DEFAULT 0
 )`
 
 const indexShareRecordsSenderTableSQL = `
