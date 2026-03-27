@@ -83,6 +83,14 @@ func (s *Store) migrate() error {
         if err != nil {
             return err
         }
+        version = 1
+    }
+
+    if version < 2 {
+        err = s.runMigrationV2()
+        if err != nil {
+            return err
+        }
     }
 
     return nil
@@ -129,6 +137,33 @@ func (s *Store) runMigrationV1() error {
     }
 
     return tx.Commit()
+}
+
+func (s *Store) runMigrationV2() error {
+	tx, err := s.writer.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	statements := []string{
+		createTransferStateTableSQL,
+		indexTransferStatePeerTableSQL,
+	}
+
+	for _, stmt := range statements {
+		_, err = tx.Exec(stmt)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = tx.Exec("UPDATE schema_version SET version = 2")
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 
@@ -268,5 +303,21 @@ CREATE TABLE IF NOT EXISTS identity (
     cumulative_sent INTEGER NOT NULL DEFAULT 0,
     cumulative_received INTEGER NOT NULL DEFAULT 0
 );
+`
+
+const createTransferStateTableSQL = `
+CREATE TABLE IF NOT EXISTS transfer_state (
+    id TEXT PRIMARY KEY,
+    peer_id TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    file_hash BLOB NOT NULL,
+    state TEXT NOT NULL,
+    last_error TEXT,
+    updated_at INTEGER NOT NULL
+);
+`
+
+const indexTransferStatePeerTableSQL = `
+CREATE INDEX IF NOT EXISTS idx_transfer_state_peer ON transfer_state(peer_id);
 `
 

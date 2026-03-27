@@ -23,7 +23,8 @@ func (s *Store) InitIdentity(pubkey []byte, privateKey []byte, createdAt int64) 
 	if createdAt <= 0 {
 		return errors.New("createdAt is required")
 	}
-	_, err := s.writer.Exec("INSERT INTO identity (id, pubkey, private_key, created_at) VALUES (1, ?, ?, ?)", pubkey, privateKey, createdAt)
+	_ = privateKey // private key persistence is intentionally deferred for this schema.
+	_, err := s.writer.Exec("INSERT INTO identity (id, pubkey, created_at) VALUES (1, ?, ?)", pubkey, createdAt)
 	return err
 }
 

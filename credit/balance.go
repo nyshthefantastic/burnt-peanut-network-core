@@ -8,7 +8,7 @@ import (
 )
 
 func ComputeEffectiveBalance(records []*gen.ShareRecord, devicePubKey []byte, deviceCreatedAt int64, now int64, params CreditParams) int64 {
-	dripAllowance := ComputeDripAllowance(deviceCreatedAt, now, params)
+	dripAllowance := ComputeDripAllowance(time.Unix(deviceCreatedAt, 0), time.Unix(now, 0), params)
 	diversityWeightedCredits := DiversityWeightedCredit(records, devicePubKey, params.WindowSize)
 	var cumulativeReceived int64
 	for _, r := range records {
