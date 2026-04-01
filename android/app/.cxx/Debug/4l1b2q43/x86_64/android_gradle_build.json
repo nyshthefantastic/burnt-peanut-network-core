@@ -1,0 +1,38 @@
+{
+  "buildFiles": [
+    "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/siyum/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/.cxx/Debug/4l1b2q43/x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/siyum/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/.cxx/Debug/4l1b2q43/x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "mljni::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "x86_64",
+      "artifactName": "mljni",
+      "output": "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/x86_64/libmljni.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/Users/siyum/Library/Android/sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/Users/siyum/Library/Android/sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

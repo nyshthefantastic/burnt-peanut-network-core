@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/.cxx/Debug/4l1b2q43/x86_64",
+  "command": "/Users/siyum/Library/Android/sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ --target=x86_64-none-linux-android24 --sysroot=/Users/siyum/Library/Android/sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/darwin-x86_64/sysroot -Dmljni_EXPORTS -I/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/src/main/cpp/../../../../../cabi -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info  -fPIC -o CMakeFiles/mljni.dir/ml_jni.cpp.o -c /Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/src/main/cpp/ml_jni.cpp",
+  "file": "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/src/main/cpp/ml_jni.cpp"
+}
+]

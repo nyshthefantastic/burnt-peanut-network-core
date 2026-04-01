@@ -174,6 +174,73 @@ func ml_get_file_index(handle C.uintptr_t) C.MLResult {
 	return makeResult(out, nil)
 }
 
+//export ml_share_file
+func ml_share_file(handle C.uintptr_t, fileData *C.uint8_t, length C.int32_t, fileName *C.char) C.int32_t {
+	node, err := getNode(handle)
+	if err != nil {
+		fmt.Printf("[cabi][share] getNode failed handle=%d err=%v\n", uintptr(handle), err)
+		return C.int32_t(errorToCode(err))
+	}
+	if fileData == nil || length <= 0 || fileName == nil {
+		fmt.Printf("[cabi][share] invalid args handle=%d fileDataNil=%v length=%d fileNameNil=%v\n", uintptr(handle), fileData == nil, int32(length), fileName == nil)
+		return C.int32_t(ML_ERR_INVALID_ARG)
+	}
+
+	data := C.GoBytes(unsafe.Pointer(fileData), length)
+	name := C.GoString(fileName)
+	if len(data) == 0 || name == "" {
+		fmt.Printf("[cabi][share] invalid converted args dataLen=%d nameEmpty=%v\n", len(data), name == "")
+		return C.int32_t(ML_ERR_INVALID_ARG)
+	}
+	fmt.Printf("[cabi][share] begin name=%q bytes=%d\n", name, len(data))
+
+	const chunkSize = 64 * 1024
+	fileHash := crypto.Hash(data)
+	originSig, sigErr := cabiSigner{node: node}.Sign(fileHash[:])
+	if sigErr != nil {
+		fmt.Printf("[cabi][share] origin signature failed err=%v\n", sigErr)
+		return C.int32_t(ML_ERR_CRYPTO)
+	}
+	chunkHashes := make([][]byte, 0, (len(data)+chunkSize-1)/chunkSize)
+	for i := 0; i < len(data); i += chunkSize {
+		end := i + chunkSize
+		if end > len(data) {
+			end = len(data)
+		}
+		chunk := data[i:end]
+		chunkHash := crypto.Hash(chunk)
+		chunkHashes = append(chunkHashes, chunkHash[:])
+		chunkIndex := uint32(i / chunkSize)
+		if code := node.Callbacks.WriteChunk(fileHash[:], chunkIndex, chunk); code != ML_OK {
+			// Some native layers may report a non-OK code even though the chunk was written.
+			// Verify presence before treating this as a hard failure.
+			hasChunk := node.Callbacks.HasChunk(fileHash[:], chunkIndex)
+			fmt.Printf("[cabi][share] WriteChunk non-OK index=%d size=%d code=%d hasChunk=%v\n", chunkIndex, len(chunk), code, hasChunk)
+			if !hasChunk {
+				return C.int32_t(code)
+			}
+		}
+	}
+
+	meta := &pb.FileMeta{
+		FileHash:    fileHash[:],
+		FileName:    name,
+		FileSize:    uint64(len(data)),
+		ChunkSize:   chunkSize,
+		ChunkHashes: chunkHashes,
+		OriginPubkey: node.Identity.Pubkey,
+		OriginSig:    originSig,
+		CreatedAt:    time.Now().Unix(),
+	}
+	if err := node.Store.InsertFileMeta(meta); err != nil {
+		fmt.Printf("[cabi][share] InsertFileMeta failed hash=%x err=%v\n", fileHash[:], err)
+		return C.int32_t(errorToCode(err))
+	}
+	fmt.Printf("[cabi][share] success hash=%x chunks=%d\n", fileHash[:], len(chunkHashes))
+
+	return C.int32_t(ML_OK)
+}
+
 
 func makeResult(data []byte, err error) C.MLResult {
 	var result C.MLResult
@@ -294,17 +361,21 @@ func ml_get_chain_summary(handle C.uintptr_t) C.MLResult {
 func ml_request_file(handle C.uintptr_t, fileHash *C.uint8_t, fileHashLen C.int32_t) C.MLResult {
 	node, err := getNode(handle)
 	if err != nil {
+		fmt.Printf("[cabi][request] getNode failed handle=%d err=%v\n", uintptr(handle), err)
 		return makeResult(nil, err)
 	}
 	if fileHash == nil || fileHashLen <= 0 {
+		fmt.Printf("[cabi][request] invalid args handle=%d fileHashNil=%v fileHashLen=%d\n", uintptr(handle), fileHash == nil, int32(fileHashLen))
 		return makeResult(nil, codeToError(ML_ERR_INVALID_ARG))
 	}
 
 	hash := C.GoBytes(unsafe.Pointer(fileHash), fileHashLen)
+	fmt.Printf("[cabi][request] begin hash=%x len=%d\n", hash, len(hash))
 
 	// Verify file exists in our metadata
 	meta, err := node.Store.GetFileMeta(hash)
 	if err != nil {
+		fmt.Printf("[cabi][request] GetFileMeta failed hash=%x err=%v\n", hash, err)
 		return makeResult(nil, err)
 	}
 	chunks := make([]uint32, len(meta.GetChunkHashes()))
@@ -313,6 +384,7 @@ func ml_request_file(handle C.uintptr_t, fileHash *C.uint8_t, fileHashLen C.int3
 	}
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
+		fmt.Printf("[cabi][request] nonce generation failed err=%v\n", err)
 		return makeResult(nil, err)
 	}
 	req := &pb.TransferRequest{
@@ -324,10 +396,12 @@ func ml_request_file(handle C.uintptr_t, fileHash *C.uint8_t, fileHashLen C.int3
 	}
 	sig, err := cabiSigner{node: node}.Sign(dag.TransferRequestSignableBytes(req))
 	if err != nil {
+		fmt.Printf("[cabi][request] sign failed err=%v\n", err)
 		return makeResult(nil, err)
 	}
 	req.Signature = sig
 	if err := node.Store.InsertRequest(req); err != nil {
+		fmt.Printf("[cabi][request] InsertRequest failed err=%v\n", err)
 		return makeResult(nil, err)
 	}
 
@@ -337,17 +411,21 @@ func ml_request_file(handle C.uintptr_t, fileHash *C.uint8_t, fileHashLen C.int3
 	if peerID == 0 {
 		peers, pErr := node.Store.GetAllPeers(1)
 		if pErr != nil || len(peers) == 0 {
+			fmt.Printf("[cabi][request] no active peer and no fallback peers err=%v\n", pErr)
 			return makeResult(nil, fmt.Errorf("no active peer available"))
 		}
 		peerID = uint64ToPeerID(peers[0].GetLastSeen())
 	}
 	if err := startSession(node, peerID, req, transfer.DirectionOutbound); err != nil {
+		fmt.Printf("[cabi][request] startSession failed peerID=%d err=%v\n", peerID, err)
 		return makeResult(nil, err)
 	}
 	reqBytes, err := proto.Marshal(req)
 	if err != nil {
+		fmt.Printf("[cabi][request] marshal failed err=%v\n", err)
 		return makeResult(nil, err)
 	}
+	fmt.Printf("[cabi][request] success peerID=%d reqBytes=%d chunks=%d\n", peerID, len(reqBytes), len(chunks))
 	return makeResult(reqBytes, nil)
 }
 

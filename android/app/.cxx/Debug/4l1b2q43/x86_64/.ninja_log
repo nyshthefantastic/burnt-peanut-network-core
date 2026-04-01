@@ -1,0 +1,23 @@
+# ninja log v5
+0	412	1775028149938040090	CMakeFiles/mljni.dir/ml_jni.cpp.o	addba77fac9938ce
+413	460	1775028149987954345	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/x86_64/libmljni.so	ba9ed5e4a3dad539
+0	7	0	clean	3d16574b686fc338
+2	1034	1775028903603884400	CMakeFiles/mljni.dir/ml_jni.cpp.o	addba77fac9938ce
+1034	1332	1775028903902617356	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/x86_64/libmljni.so	ba9ed5e4a3dad539
+2	524	1775029740170042495	CMakeFiles/mljni.dir/ml_jni.cpp.o	addba77fac9938ce
+524	610	1775029740257578165	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/x86_64/libmljni.so	ba9ed5e4a3dad539
+0	7	0	clean	3d16574b686fc338
+2	539	1775030429648483423	CMakeFiles/mljni.dir/ml_jni.cpp.o	addba77fac9938ce
+540	668	1775030429778913589	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/x86_64/libmljni.so	ba9ed5e4a3dad539
+0	6	0	clean	3d16574b686fc338
+2	271	1775031313513751099	CMakeFiles/mljni.dir/ml_jni.cpp.o	addba77fac9938ce
+271	355	1775031313599130027	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/x86_64/libmljni.so	ba9ed5e4a3dad539
+0	5	0	clean	3d16574b686fc338
+0	5	0	clean	3d16574b686fc338
+2	679	1775031524555270332	CMakeFiles/mljni.dir/ml_jni.cpp.o	addba77fac9938ce
+680	762	1775031524639220927	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/x86_64/libmljni.so	ba9ed5e4a3dad539
+2	255	1775033527943396505	CMakeFiles/mljni.dir/ml_jni.cpp.o	addba77fac9938ce
+256	338	1775033528026685161	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/x86_64/libmljni.so	ba9ed5e4a3dad539
+0	5	0	clean	3d16574b686fc338
+2	559	1775036123569078341	CMakeFiles/mljni.dir/ml_jni.cpp.o	addba77fac9938ce
+559	626	1775036123637928838	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/x86_64/libmljni.so	ba9ed5e4a3dad539

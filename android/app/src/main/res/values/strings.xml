@@ -1,5 +1,14 @@
 <resources>
     <string name="app_name">Burnt Peanut Core</string>
-    <string name="run_smoke_test">Smoke test node</string>
-    <string name="status_hint">Build libcore.so, sync jniLibs, then tap the button.</string>
+    <string name="status_hint">MVP test panel: create node, connect peer, request file, and inspect status.</string>
+    <string name="create_node">1) Create Node</string>
+    <string name="connect_peer">2) Connect Test Peer</string>
+    <string name="share_sample_file">3) Share Sample File</string>
+    <string name="request_file">4) Request File (entered hash)</string>
+    <string name="send_bad_payload">5) Send Invalid Payload</string>
+    <string name="disconnect_peer">6) Disconnect Test Peer</string>
+    <string name="destroy_node">7) Destroy Node</string>
+    <string name="file_hash_hint">Paste file hash (hex) from sender phone</string>
+    <string name="event_log">Event Log</string>
+    <string name="event_log_empty">No events yet.</string>
 </resources>

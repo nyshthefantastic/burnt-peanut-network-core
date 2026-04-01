@@ -1,0 +1,3 @@
+/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/.cxx/Debug/4l1b2q43/x86_64/CMakeFiles/mljni.dir
+/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/.cxx/Debug/4l1b2q43/x86_64/CMakeFiles/edit_cache.dir
+/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/.cxx/Debug/4l1b2q43/x86_64/CMakeFiles/rebuild_cache.dir

@@ -107,7 +107,9 @@ type cabiSigner struct {
 }
 
 func (s cabiSigner) Sign(message []byte) ([]byte, error) {
-	if s.node.Callbacks != nil && s.node.Callbacks.HasSecureElement() {
+	// For mobile MVP we always attempt callback signing first.
+	// This works with either real secure element or temporary software-backed callbacks.
+	if s.node.Callbacks != nil {
 		if sig, code := s.node.Callbacks.SignWithSecureKey(message); code == ML_OK {
 			return sig, nil
 		}
