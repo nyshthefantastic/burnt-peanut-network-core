@@ -9,6 +9,7 @@ import (
 
 	"github.com/nyshthefantastic/burnt-peanut-network-core/crypto"
 	"github.com/nyshthefantastic/burnt-peanut-network-core/dag"
+	"github.com/nyshthefantastic/burnt-peanut-network-core/storage"
 	pb "github.com/nyshthefantastic/burnt-peanut-network-core/wire/gen"
 	"google.golang.org/protobuf/proto"
 )
@@ -49,6 +50,7 @@ type TransferSession struct {
 	balance   BalanceChecker
 	signer    Signer
 	storage   FileStorage
+	policyStore *storage.Store
 
 	localPubKey     []byte
 	pendingRequest  *pb.TransferRequest
@@ -96,6 +98,12 @@ func (s *TransferSession) SetPendingRequest(req *pb.TransferRequest) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pendingRequest = req
+}
+
+func (s *TransferSession) SetPolicyStore(store *storage.Store) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.policyStore = store
 }
 
 func (s *TransferSession) TransitionTo(next TransferState) error {
@@ -272,7 +280,17 @@ func (s *TransferSession) handleVerifying(_ context.Context) (TransferState, err
 		return StateRejected, fmt.Errorf("insufficient drip allowance for new device")
 	}
 
-	approved, reason := EvaluatePolicy(nil, peerPub, peerPolicy, handshake.GetLatestCheckpoint(), handshake.GetRecordsSinceCheckpoint())
+	recordsForPolicy := handshake.GetRecordsSinceCheckpoint()
+	if s.policyStore != nil && len(recordsForPolicy) == 0 {
+		from := uint64(0)
+		if cp := handshake.GetLatestCheckpoint(); cp != nil {
+			from = cp.GetRecordIndex()
+		}
+		if fetched, fetchErr := s.policyStore.GetRecordsByDevice(peerPub, from, 200); fetchErr == nil {
+			recordsForPolicy = fetched
+		}
+	}
+	approved, reason := EvaluatePolicy(s.policyStore, peerPub, peerPolicy, handshake.GetLatestCheckpoint(), recordsForPolicy)
 	if approved {
 		return StateTransferring, nil
 	}

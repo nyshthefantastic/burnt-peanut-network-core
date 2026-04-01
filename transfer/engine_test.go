@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	mlcrypto "github.com/nyshthefantastic/burnt-peanut-network-core/crypto"
 	"github.com/nyshthefantastic/burnt-peanut-network-core/dag"
@@ -246,6 +247,19 @@ func TestCheckpointAndRecoverSessions(t *testing.T) {
 	}
 	if string(r.FileHash) != string(s.FileHash) {
 		t.Fatalf("recovered session file hash mismatch")
+	}
+}
+
+func TestValidateTransferRequestWindow(t *testing.T) {
+	now := time.Now().Unix()
+	req := &pb.TransferRequest{Timestamp: now - 10}
+	if err := ValidateTransferRequestWindow(req, now, DefaultTransferRequestTTLSeconds); err != nil {
+		t.Fatalf("expected valid request window, got: %v", err)
+	}
+
+	expired := &pb.TransferRequest{Timestamp: now - DefaultTransferRequestTTLSeconds - 1}
+	if err := ValidateTransferRequestWindow(expired, now, DefaultTransferRequestTTLSeconds); err == nil {
+		t.Fatalf("expected expired request error")
 	}
 }
 

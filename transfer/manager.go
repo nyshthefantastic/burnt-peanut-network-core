@@ -78,3 +78,34 @@ func (m *SessionManager) ActiveCount() int {
 
 	return len(m.sessions)
 }
+
+func (m *SessionManager) List() []*TransferSession {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	out := make([]*TransferSession, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		out = append(out, s)
+	}
+	return out
+}
+
+func (m *SessionManager) RemoveCompleted() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	removed := 0
+	for id, s := range m.sessions {
+		if s == nil {
+			delete(m.sessions, id)
+			removed++
+			continue
+		}
+		state := s.getState()
+		if state == StateComplete || state == StateFailed || state == StateRejected {
+			delete(m.sessions, id)
+			removed++
+		}
+	}
+	return removed
+}

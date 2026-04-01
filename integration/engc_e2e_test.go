@@ -310,6 +310,10 @@ func TestEngC_GossipDiscoveryNode_E2E(t *testing.T) {
 		t.Fatalf("stop node: %v", err)
 	}
 
+	if err := n.AuthorizeFileRequest(capability, reqPub, time.Now().Unix()); err != nil {
+		t.Fatalf("node capability authorization failed: %v", err)
+	}
+
 	peer, err := storeA.GetPeer([]byte("peer-via-node"))
 	if err != nil {
 		t.Fatalf("expected node to process incoming gossip: %v", err)

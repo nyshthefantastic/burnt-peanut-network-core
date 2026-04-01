@@ -25,3 +25,33 @@ Peer-to-peer file sharing protocol where devices earn credit by sharing and spen
 **discovery/** — File discovery. File index, salted hash advertising for BLE, and capability tokens.
 
 **node/** — Node coordinator. Ties all subsystems together into a single event loop. Entry point for the C ABI.
+
+## Protocol Layers
+
+1. Identity: device-bound key material and attestations.
+2. Record DAG: bilateral co-signed share records.
+3. Credit: drip, diversity, decay, and per-peer caps.
+4. Gossip: peer summaries, fork evidence, and checkpoint sync.
+5. Discovery: salted advertisement prefixes and capability gating.
+6. Transport: envelope exchange over BLE/WiFi Direct/TCP-like adapters.
+7. Application: user-driven file share/request behavior.
+
+## Quickstart
+
+Run all tests:
+
+```bash
+go test ./...
+```
+
+Run CI checks:
+
+```bash
+make ci
+```
+
+## Policy Levels
+
+- `POLICY_NONE`: no balance gate, only safety checks.
+- `POLICY_LIGHT`: checkpoint + chain consistency + positive effective balance + no fork evidence.
+- `POLICY_STRICT`: high-confidence checkpoint (K/D/F thresholds) + full credit checks + no fork evidence.

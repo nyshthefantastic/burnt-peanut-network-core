@@ -21,8 +21,10 @@ we need to use //export comment so that CGo makes them visible to C.
 import "C"
 import (
 	"encoding/binary"
+	"time"
 	"unsafe"
 
+	"github.com/nyshthefantastic/burnt-peanut-network-core/credit"
 	"github.com/nyshthefantastic/burnt-peanut-network-core/crypto"
 	"github.com/nyshthefantastic/burnt-peanut-network-core/identity"
 	"github.com/nyshthefantastic/burnt-peanut-network-core/storage"
@@ -150,17 +152,23 @@ func ml_get_file_index(handle C.uintptr_t) C.MLResult {
 	if err != nil {
 		return makeResult(nil, err)
 	}
+	files, err := node.Store.ListFiles(200, 0)
+	if err != nil {
+		return makeResult(nil, err)
+	}
 
-	_ = node
-
-	// NO DEPENDENCIES — uses your storage layer directly
-	//
-	// FLOW:
-	//   1. Call node.Store.ListFiles(limit, offset)
-	//   2. Length-prefix each proto.Marshal'd FileMeta
-	//   3. Return via makeResult
-
-	return makeResult(nil, nil)
+	var out []byte
+	for _, file := range files {
+		data, err := proto.Marshal(file)
+		if err != nil {
+			return makeResult(nil, err)
+		}
+		length := make([]byte, 4)
+		binary.BigEndian.PutUint32(length, uint32(len(data)))
+		out = append(out, length...)
+		out = append(out, data...)
+	}
+	return makeResult(out, nil)
 }
 
 
@@ -212,26 +220,42 @@ func ml_get_balance(handle C.uintptr_t) C.MLResult {
 		return makeResult(nil, err)
 	}
 
-	// TODO: credit/balance.go (Engineer B)
-	balance := &struct {
-		CumulativeSent     uint64
-		CumulativeReceived uint64
-	}{
-		CumulativeSent:     identity.CumulativeSent,
-		CumulativeReceived: identity.CumulativeReceived,
+	records, err := node.Store.GetRecordsByDevice(identity.Pubkey, 0, 2000)
+	if err != nil {
+		records = nil
 	}
-	_ = balance
 
-	// NEEDS FROM ENGINEER B:
-	//   credit/balance.go → ComputeEffectiveBalance(db, devicePubkey, params)
-	//   Returns a pb.Balance with: drip_allowance, diversity_weighted_credit,
-	//   cumulative_received, decay_penalty, effective_balance
-	//
-	// FLOW:
-	//   1. Get own pubkey from node.Identity
-	//   2. Call B's ComputeEffectiveBalance(node.Store, pubkey, defaultParams)
-	//   3. proto.Marshal the Balance → makeResult
-	return makeResult(nil, nil)
+	params := credit.DefaultParams()
+	now := time.Now().Unix()
+	dripAllowance := credit.ComputeDripAllowance(time.Unix(identity.CreatedAt, 0), time.Unix(now, 0), params)
+	diversityWeighted := credit.DiversityWeightedCredit(records, identity.Pubkey, params.WindowSize)
+	effective := credit.ComputeEffectiveBalance(records, identity.Pubkey, identity.CreatedAt, now, params)
+
+	var cumulativeReceived int64
+	for _, r := range records {
+		if bytesEqual(r.GetReceiverPubkey(), identity.Pubkey) {
+			cumulativeReceived += int64(r.GetBytesTotal())
+		}
+	}
+	decayPenalty := diversityWeighted - credit.ApplyPerPeerCaps(records, identity.Pubkey, params)
+	if decayPenalty < 0 {
+		decayPenalty = 0
+	}
+
+	balance := &pb.Balance{
+		DevicePubkey:             identity.Pubkey,
+		DripAllowance:            dripAllowance,
+		DiversityWeightedCredit:  diversityWeighted,
+		CumulativeReceived:       cumulativeReceived,
+		DecayPenalty:             decayPenalty,
+		EffectiveBalance:         effective,
+		ComputedAt:               now,
+	}
+	data, err := proto.Marshal(balance)
+	if err != nil {
+		return makeResult(nil, err)
+	}
+	return makeResult(data, nil)
 }
 
 
@@ -398,31 +422,61 @@ func ml_on_data_received(handle C.uintptr_t, peerID C.uintptr_t, data *C.uint8_t
 	_ = peerID
 	goData := C.GoBytes(unsafe.Pointer(data), dataLen)
 
-	_, err = wire.DecodeEnvelope(goData)
-
+	env, err := wire.DecodeEnvelope(goData)
 	if err != nil {
 		return
 	}
 
-	// NEEDS FROM ENGINEER A (you):
-	//   wire/codec.go → DecodeEnvelope(data) to parse the incoming message
-	//
-	// NEEDS FROM ENGINEER C:
-	//   transfer/engine.go → SessionManager.GetSession(peerID) to route data
-	//   gossip/engine.go → GossipSession for gossip messages
-	//
-	// NEEDS FROM ENGINEER B:
-	//   dag/chain.go → AppendToChain() when a ShareRecord arrives
-	//   dag/fork.go → DetectFork() when checking received records
-	//
-	// FLOW:
-	//   1. Raw bytes arrive from Bluetooth/WiFi
-	//   2. Decode: wire.DecodeEnvelope(data) → get the Envelope
-	//   3. Check envelope payload type:
-	//      Envelope_Handshake       → C's transfer session handshake handler
-	//      Envelope_TransferRequest → C's transfer session request handler
-	//      Envelope_ChunkBatch      → C's batch handler, verify chunks with crypto.Hash
-	//      Envelope_ShareRecord     → B's chain append + co-signing flow
-	//      Envelope_Gossip          → C's gossip engine, B's fork detection
-	//      Envelope_ForkEvidence    → store via node.Store.InsertForkEvidence
+	switch payload := env.Payload.(type) {
+	case *pb.Envelope_Gossip:
+		for _, peer := range payload.Gossip.GetPeerSummaries() {
+			_ = node.Store.UpsertPeer(peer)
+		}
+		if payload.Gossip.GetSelfSummary() != nil {
+			_ = node.Store.UpsertPeer(payload.Gossip.GetSelfSummary())
+		}
+		for _, f := range payload.Gossip.GetSeedingFiles() {
+			_ = node.Store.InsertFileMeta(f)
+		}
+		if payload.Gossip.GetLatestCheckpoint() != nil {
+			_ = node.Store.InsertCheckpoint(payload.Gossip.GetLatestCheckpoint())
+		}
+		for _, fe := range payload.Gossip.GetForkEvidence() {
+			_ = node.Store.InsertForkEvidence(fe)
+		}
+		node.Callbacks.NotifyGossipReceived(uintptr(peerID))
+	case *pb.Envelope_ForkEvidence:
+		if payload.ForkEvidence != nil {
+			_ = node.Store.InsertForkEvidence(payload.ForkEvidence)
+			node.Callbacks.NotifyForkDetected(payload.ForkEvidence.GetDevicePubkey())
+		}
+	case *pb.Envelope_ShareRecord:
+		if payload.ShareRecord != nil {
+			_ = node.Store.InsertRecord(payload.ShareRecord)
+		}
+	case *pb.Envelope_TransferRequest:
+		if payload.TransferRequest != nil {
+			_ = node.Store.InsertRequest(payload.TransferRequest)
+		}
+	case *pb.Envelope_ChunkBatch:
+		// Chunk persistence is delegated to native chunk storage callbacks.
+		batch := payload.ChunkBatch
+		if batch != nil {
+			for _, chunk := range batch.GetChunks() {
+				_ = node.Callbacks.WriteChunk(batch.GetFileHash(), chunk.GetChunkIndex(), chunk.GetData())
+			}
+		}
+	}
+}
+
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

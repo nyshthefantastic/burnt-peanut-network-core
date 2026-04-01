@@ -73,6 +73,28 @@ func TestBuildGossipPayloadIncludesPeerSummaries(t *testing.T) {
 	if len(payload.GetPeerSummaries()) == 0 {
 		t.Fatalf("expected at least one peer summary")
 	}
+	if len(payload.GetSeedingFiles()) == 0 {
+		// Seed one file and rebuild to assert file propagation path.
+		if err := store.InsertFileMeta(&pb.FileMeta{
+			FileHash:     []byte("f1"),
+			FileName:     "file.bin",
+			FileSize:     1,
+			ChunkSize:    1,
+			ChunkHashes:  [][]byte{[]byte("01234567890123456789012345678901")},
+			OriginPubkey: []byte("peer-1"),
+			OriginSig:    []byte("sig"),
+			CreatedAt:    time.Now().Unix(),
+		}); err != nil {
+			t.Fatalf("seed file meta: %v", err)
+		}
+		payload, err = BuildGossipPayload(store)
+		if err != nil {
+			t.Fatalf("rebuild gossip payload: %v", err)
+		}
+	}
+	if len(payload.GetSeedingFiles()) == 0 {
+		t.Fatalf("expected seeding files to be populated")
+	}
 }
 
 func TestProcessGossipPayloadPropagatesData(t *testing.T) {
@@ -198,5 +220,24 @@ func TestRunGossipExchange(t *testing.T) {
 
 	if _, err := store.GetPeer([]byte("remote-peer")); err != nil {
 		t.Fatalf("expected remote peer summary applied: %v", err)
+	}
+}
+
+func TestApplyByteBudgetPrioritization(t *testing.T) {
+	payload := &pb.GossipPayload{
+		ForkEvidence:  []*pb.ForkEvidence{{}, {}},
+		PeerSummaries: []*pb.PeerInfo{{}, {}, {}},
+		SeedingFiles:  []*pb.FileMeta{{}, {}},
+	}
+
+	trimmed := ApplyByteBudget(payload, 3)
+	if len(trimmed.GetForkEvidence()) != 2 {
+		t.Fatalf("expected 2 fork evidence items, got %d", len(trimmed.GetForkEvidence()))
+	}
+	if len(trimmed.GetPeerSummaries()) != 1 {
+		t.Fatalf("expected 1 peer summary item, got %d", len(trimmed.GetPeerSummaries()))
+	}
+	if len(trimmed.GetSeedingFiles()) != 0 {
+		t.Fatalf("expected 0 seeding files, got %d", len(trimmed.GetSeedingFiles()))
 	}
 }

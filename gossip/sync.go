@@ -11,6 +11,7 @@ import (
 )
 
 const defaultPeerSummaryLimit = 256
+const defaultGossipMaxItems = 256
 
 func BuildGossipPayload(store *storage.Store) (*pb.GossipPayload, error) {
 	if store == nil {
@@ -45,8 +46,13 @@ func BuildGossipPayload(store *storage.Store) (*pb.GossipPayload, error) {
 		payload.ForkEvidence = forks
 	}
 
-	// TODO(C4): expose seeding file list from storage and populate payload.SeedingFiles.
-	return payload, nil
+	files, err := store.ListFiles(defaultPeerSummaryLimit, 0)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("load seeding files: %w", err)
+	}
+	payload.SeedingFiles = files
+
+	return ApplyByteBudget(payload, defaultGossipMaxItems), nil
 }
 
 func ProcessGossipPayload(store *storage.Store, payload *pb.GossipPayload) error {

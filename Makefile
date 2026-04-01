@@ -1,4 +1,4 @@
-.PHONY: proto clean build-android-arm64 build-android-x86 build-ios
+.PHONY: proto clean build-android-arm64 build-android-x86 build-ios test ci
 
 proto:
 	@mkdir -p wire/gen
@@ -43,6 +43,12 @@ build-ios:
 # ─── All ───
 
 build-all: build-android-arm64 build-android-x86 build-ios
+
+test:
+	go test ./...
+
+ci:
+	./scripts/ci.sh
 
 clean:
 	rm -rf wire/gen/*.pb.go

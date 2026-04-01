@@ -69,4 +69,11 @@ func TestCapabilityCreateAndValidate(t *testing.T) {
 	if err := ValidateCapability(cap, requesterPub, now); err != nil {
 		t.Fatalf("validate capability: %v", err)
 	}
+
+	if err := ValidateCapability(cap, []byte("other"), now); err == nil {
+		t.Fatalf("expected targeted capability to reject other requester")
+	}
+	if err := ValidateCapability(cap, requesterPub, now+120); err == nil {
+		t.Fatalf("expected expired capability rejection")
+	}
 }

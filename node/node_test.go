@@ -107,3 +107,77 @@ func TestNodeStartStopAndGossipRoute(t *testing.T) {
 		t.Fatalf("expected gossip payload to upsert remote peer: %v", err)
 	}
 }
+
+func TestNodeRejectsExpiredTransferRequest(t *testing.T) {
+	s := testStore(t)
+	defer s.Close()
+	if err := s.InitIdentity([]byte("node-local"), nil, time.Now().Unix()); err != nil {
+		t.Fatalf("init identity: %v", err)
+	}
+
+	mt := &mockTransport{
+		peerID: "peer-1",
+		recv: []*pb.Envelope{
+			{
+				Payload: &pb.Envelope_TransferRequest{
+					TransferRequest: &pb.TransferRequest{
+						RequesterPubkey: []byte("peer"),
+						FileHash:        []byte("f"),
+						ChunkIndices:    []uint32{1},
+						Nonce:           []byte("n"),
+						Timestamp:       time.Now().Add(-10 * time.Minute).Unix(),
+						Signature:       []byte("bad"),
+					},
+				},
+			},
+		},
+	}
+
+	n, err := New(s, mt, 4)
+	if err != nil {
+		t.Fatalf("new node: %v", err)
+	}
+	if err := n.Start(); err != nil {
+		t.Fatalf("start node: %v", err)
+	}
+	time.Sleep(30 * time.Millisecond)
+	_ = n.Stop()
+	if n.transfer.ActiveCount() != 0 {
+		t.Fatalf("expected no active session for invalid request")
+	}
+}
+
+func TestNodeAdvertiseAndMatchAndAuthorize(t *testing.T) {
+	s := testStore(t)
+	defer s.Close()
+	if err := s.InitIdentity([]byte("node-local"), nil, time.Now().Unix()); err != nil {
+		t.Fatalf("init identity: %v", err)
+	}
+	mt := &mockTransport{peerID: "p1"}
+	n, err := New(s, mt, 2)
+	if err != nil {
+		t.Fatalf("new node: %v", err)
+	}
+
+	meta := &pb.FileMeta{
+		FileHash:     []byte("file-hash-1"),
+		FileName:     "f",
+		FileSize:     10,
+		ChunkSize:    5,
+		ChunkHashes:  [][]byte{[]byte("01234567890123456789012345678901")},
+		OriginPubkey: []byte("node-local"),
+		OriginSig:    []byte("sig"),
+		CreatedAt:    time.Now().Unix(),
+	}
+	ad, err := n.AdvertiseFile(meta, []uint32{0})
+	if err != nil {
+		t.Fatalf("advertise file: %v", err)
+	}
+	matches, err := n.MatchIncomingAdvertisement(ad)
+	if err != nil {
+		t.Fatalf("match incoming ad: %v", err)
+	}
+	if len(matches) == 0 {
+		t.Fatalf("expected at least one match")
+	}
+}

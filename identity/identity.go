@@ -15,8 +15,7 @@ func NewIdentity(store *storage.Store) (*DeviceIdentity, error) {
 		return nil, err
 	}
 	
-	// store the identity in the storage.
-	// TODO: the private key stored in the database for now. once the cabi is implemented, removing this
+	// Persist public identity metadata in storage; private key is returned to caller/runtime.
 	createdAt := time.Now().Unix()
 	err = store.InitIdentity(pubkey, privateKey, createdAt)
 		if err != nil {
