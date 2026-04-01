@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Build
+import android.graphics.Color
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -31,6 +32,9 @@ class MainActivity : AppCompatActivity() {
         events.addLast(line)
         logView.text = events.joinToString("\n")
         statusView.text = message
+        val lower = message.lowercase(Locale.US)
+        val isError = lower.contains("failed") || lower.contains("error") || lower.contains("invalid") || lower.contains("no payload")
+        statusView.setTextColor(if (isError) Color.parseColor("#B00020") else Color.parseColor("#1B5E20"))
     }
 
     private fun errorName(code: Int): String = when (code) {
@@ -54,6 +58,7 @@ class MainActivity : AppCompatActivity() {
         val status = findViewById<TextView>(R.id.status)
         val logView = findViewById<TextView>(R.id.event_log)
         val inputHash = findViewById<EditText>(R.id.input_file_hash)
+        val inputPeerAddress = findViewById<EditText>(R.id.input_peer_address)
         val peerStateView = findViewById<TextView>(R.id.peer_state)
         val peerListView = findViewById<TextView>(R.id.peer_list)
 
@@ -95,6 +100,24 @@ class MainActivity : AppCompatActivity() {
             BleTransportManager.start(this)
             renderPeers()
             pushEvent(logView, status, "Refreshed BLE scan; waiting for real peer")
+        }
+
+        findViewById<Button>(R.id.btn_connect_mac).setOnClickListener {
+            if (nodeHandle == 0L) {
+                pushEvent(logView, status, "Create node first")
+                return@setOnClickListener
+            }
+            val address = inputPeerAddress.text.toString().trim()
+            if (address.isEmpty()) {
+                pushEvent(logView, status, "Enter peer MAC first (AA:BB:CC:DD:EE:FF)")
+                return@setOnClickListener
+            }
+            val ok = BleTransportManager.connectToAddress(address)
+            if (ok) {
+                pushEvent(logView, status, "Manual connect requested for $address")
+            } else {
+                pushEvent(logView, status, "Manual connect failed for $address")
+            }
         }
 
         findViewById<Button>(R.id.btn_share_sample).setOnClickListener {

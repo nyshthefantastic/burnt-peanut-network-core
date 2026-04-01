@@ -25,6 +25,7 @@ import android.bluetooth.le.ScanCallback.SCAN_FAILED_ALREADY_STARTED
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
 import android.location.LocationManager
 import androidx.core.content.ContextCompat
 import android.util.Log
@@ -35,6 +36,7 @@ import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicInteger
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelUuid
 
 /**
  * Real BLE transport for envelope byte exchange (GATT notify + write).
@@ -80,6 +82,16 @@ object BleTransportManager {
     private var peerEventsListener: PeerEventsListener? = null
     @Volatile
     private var started = false
+    @Volatile
+    private var loggedFirstRawScan = false
+    @Volatile
+    private var sawAnyScanCallback = false
+    @Volatile
+    private var lastScanKickMs = 0L
+    @Volatile
+    private var scanActive = false
+    @Volatile
+    private var scanBlockedUntilMs = 0L
 
     private data class FrameAssembly(
         val total: Int,
@@ -89,6 +101,16 @@ object BleTransportManager {
     fun start(context: Context) {
         if (started) {
             Log.i(TAG, "start transport (already started)")
+            appContext = context.applicationContext
+            manager = context.getSystemService(BluetoothManager::class.java)
+            adapter = manager?.adapter
+            advertiser = adapter?.bluetoothLeAdvertiser
+            scanner = adapter?.bluetoothLeScanner
+            if (adapter?.isEnabled == true && hasBlePermissions(context)) {
+                // Re-ensure peripherals in case OS/vendor stack dropped state.
+                if (gattServer == null) startGattServer()
+                startAdvertising()
+            }
             startScanning()
             return
         }
@@ -119,6 +141,8 @@ object BleTransportManager {
     fun stop() {
         Log.i(TAG, "stop transport")
         started = false
+        scanActive = false
+        scanBlockedUntilMs = 0L
         peers.clear()
         synchronized(inboundLock) { seenScanAddresses.clear() }
         runCatching { scanner?.stopScan(scanCallback) }
@@ -135,6 +159,30 @@ object BleTransportManager {
     fun connectPeer(peerId: Long) {
         // Legacy no-op: keep API stable but avoid fake/manual peer injection.
         appContext?.let { if (hasBlePermissions(it)) startScanning() }
+    }
+
+    fun connectToAddress(address: String): Boolean {
+        val ctx = appContext ?: return false
+        if (!hasBlePermissions(ctx)) return false
+        val normalized = address.trim().uppercase()
+        if (!normalized.matches(Regex("([0-9A-F]{2}:){5}[0-9A-F]{2}"))) {
+            Log.w(TAG, "connectToAddress invalid address=$address")
+            return false
+        }
+        val btAdapter = adapter ?: return false
+        return try {
+            val device = btAdapter.getRemoteDevice(normalized)
+            if (outboundGatt != null && outboundDevice?.address == normalized) return true
+            pendingConnectAddress = normalized
+            val gatt = device.connectGatt(ctx, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            outboundGatt = gatt
+            synchronized(inboundLock) { peerAddresses[peerIdFromAddress(normalized)] = normalized }
+            Log.i(TAG, "manual connect requested addr=$normalized")
+            true
+        } catch (t: Throwable) {
+            Log.e(TAG, "manual connect failed addr=$normalized: ${t.message}", t)
+            false
+        }
     }
 
     fun disconnectPeer(peerId: Long) {
@@ -258,18 +306,24 @@ object BleTransportManager {
     private fun startAdvertising() {
         val ctx = appContext ?: return
         if (!hasBlePermissions(ctx)) return
+        runCatching { advertiser?.stopAdvertising(advertiseCallback) }
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setConnectable(true)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
             .build()
+        // Keep primary ADV packet tiny for better compatibility.
         val data = AdvertiseData.Builder()
-            .addServiceUuid(android.os.ParcelUuid(SERVICE_UUID))
             .addManufacturerData(MANUFACTURER_ID, MANUFACTURER_TAG)
             .setIncludeDeviceName(false)
             .build()
+        // Put UUID into scan response so scanners can still match by service.
+        val scanResponse = AdvertiseData.Builder()
+            .addServiceUuid(ParcelUuid(SERVICE_UUID))
+            .setIncludeDeviceName(false)
+            .build()
         try {
-            advertiser?.startAdvertising(settings, data, advertiseCallback)
+            advertiser?.startAdvertising(settings, data, scanResponse, advertiseCallback)
         } catch (se: SecurityException) {
             Log.e(TAG, "startAdvertising SecurityException: ${se.message}", se)
         }
@@ -278,60 +332,37 @@ object BleTransportManager {
     private fun startScanning() {
         val ctx = appContext ?: return
         if (!hasBlePermissions(ctx)) return
+        val now = System.currentTimeMillis()
+        if (scanActive) return
+        if (now < scanBlockedUntilMs) {
+            Log.w(TAG, "scan temporarily blocked; retry in ${scanBlockedUntilMs - now}ms")
+            return
+        }
+        if (now - lastScanKickMs < 2500L) return
+        lastScanKickMs = now
         logLocationState(ctx)
-        runCatching { scanner?.stopScan(scanCallback) }
-        // Broad scan + app-level filtering is more reliable on some vendor stacks.
-        val filters = emptyList<ScanFilter>()
-        val builder = ScanSettings.Builder()
+        loggedFirstRawScan = false
+        sawAnyScanCallback = false
+        val filters = listOf(
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(SERVICE_UUID))
+                .build(),
+            ScanFilter.Builder()
+                .setManufacturerData(MANUFACTURER_ID, MANUFACTURER_TAG)
+                .build(),
+        )
+        val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setReportDelay(0L)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            builder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
-                .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Keep legacy scan enabled for compatibility with default advertiser mode.
-            builder.setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
-        }
-        val settings = builder.build()
+            .build()
         try {
+            // Filtered scan avoids Android throttling of unfiltered background/screen-off scans.
             scanner?.startScan(filters, settings, scanCallback)
-            Log.i(TAG, "scan started")
-            scheduleLegacyScanFallback()
+            scanActive = true
+            Log.i(TAG, "scan started (filtered)")
         } catch (se: SecurityException) {
             Log.e(TAG, "startScan SecurityException: ${se.message}", se)
         }
-    }
-
-    private fun scheduleLegacyScanFallback() {
-        if (legacyScanFallbackActive) return
-        legacyScanFallbackActive = true
-        mainHandler.postDelayed({
-            try {
-                if (peers.isNotEmpty() || outboundGatt != null) return@postDelayed
-                val ctx = appContext ?: return@postDelayed
-                if (!hasBlePermissions(ctx)) return@postDelayed
-                val scannerRef = scanner ?: return@postDelayed
-                runCatching { scannerRef.stopScan(scanCallback) }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    val legacySettings = ScanSettings.Builder()
-                        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                        .setReportDelay(0L)
-                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
-                        .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
-                        .setLegacy(true)
-                        .build()
-                    scannerRef.startScan(emptyList(), legacySettings, scanCallback)
-                    Log.i(TAG, "scan fallback started (legacy=true)")
-                }
-            } catch (t: Throwable) {
-                Log.w(TAG, "scan fallback failed: ${t.message}")
-            } finally {
-                legacyScanFallbackActive = false
-            }
-        }, 5000L)
     }
 
     private val advertiseCallback = object : AdvertiseCallback() {
@@ -346,8 +377,13 @@ object BleTransportManager {
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
+            sawAnyScanCallback = true
             val device = result.device ?: return
             val address = device.address ?: return
+            if (!loggedFirstRawScan) {
+                loggedFirstRawScan = true
+                Log.i(TAG, "raw scan callback addr=$address rssi=${result.rssi}")
+            }
             val advertisesService = result.scanRecord
                 ?.serviceUuids
                 ?.any { it.uuid == SERVICE_UUID } == true
@@ -379,8 +415,22 @@ object BleTransportManager {
         }
 
         override fun onScanFailed(errorCode: Int) {
+            scanActive = false
             if (errorCode != SCAN_FAILED_ALREADY_STARTED) {
                 Log.e(TAG, "scan failed code=$errorCode")
+            }
+            // Avoid repeated startScan attempts after controller rate-limit.
+            if (errorCode == 6) {
+                scanBlockedUntilMs = System.currentTimeMillis() + 30_000L
+            }
+        }
+
+        override fun onBatchScanResults(results: MutableList<ScanResult>) {
+            if (results.isNotEmpty()) {
+                Log.i(TAG, "batch scan results count=${results.size}")
+            }
+            for (result in results) {
+                onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, result)
             }
         }
     }

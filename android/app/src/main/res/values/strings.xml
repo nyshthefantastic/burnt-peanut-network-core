@@ -1,8 +1,9 @@
 <resources>
     <string name="app_name">Burnt Peanut Core</string>
-    <string name="status_hint">MVP test panel: create node, connect peer, request file, and inspect status.</string>
+    <string name="status_hint">Ready. Create node, connect peers, and inspect status/errors below.</string>
     <string name="create_node">1) Create Node</string>
     <string name="connect_peer">2) Refresh BLE Scan</string>
+    <string name="connect_by_mac">2b) Connect by MAC</string>
     <string name="share_sample_file">3) Share Sample File</string>
     <string name="request_file">4) Request File (entered hash)</string>
     <string name="reconstruct_file">5) Reconstruct Received File</string>
@@ -10,9 +11,10 @@
     <string name="disconnect_peer">7) Disconnect Test Peer</string>
     <string name="destroy_node">8) Destroy Node</string>
     <string name="file_hash_hint">Paste file hash (hex) from sender phone</string>
+    <string name="peer_address_hint">Optional: peer MAC (AA:BB:CC:DD:EE:FF)</string>
     <string name="peer_state_disconnected">BLE peers: disconnected</string>
     <string name="peer_state_connected">BLE peers: connected</string>
     <string name="peer_list_empty">No peers discovered yet.</string>
     <string name="event_log">Event Log</string>
-    <string name="event_log_empty">No events yet.</string>
+    <string name="event_log_empty">No events yet.\nTip: long-press log text to copy.</string>
 </resources>
