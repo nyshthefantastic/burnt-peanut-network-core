@@ -1,0 +1,1 @@
+/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/arm64-v8a

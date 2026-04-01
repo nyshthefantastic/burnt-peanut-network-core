@@ -1,0 +1,27 @@
+{
+  "buildFiles": [
+    "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/siyum/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/.cxx/Debug/4l1b2q43/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/siyum/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/.cxx/Debug/4l1b2q43/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "mljni::@6890427a1f51a3e7e1df": {
+      "artifactName": "mljni",
+      "abi": "arm64-v8a",
+      "output": "/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/arm64-v8a/libmljni.so",
+      "runtimeFiles": []
+    }
+  }
+}

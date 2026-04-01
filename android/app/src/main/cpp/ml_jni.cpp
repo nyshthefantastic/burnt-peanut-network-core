@@ -152,7 +152,7 @@ MLCallbacks make_stub_callbacks() {
 }  // namespace
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_burntpeanut_core_CoreBridge_nativeCreateNode(JNIEnv* env, jobject /*thiz*/, jstring jpath) {
+Java_com_burntpeanut_core_CoreBridge_nativeCreateNode(JNIEnv* env, jclass /*clazz*/, jstring jpath) {
     if (!jpath) {
         return 0;
     }
@@ -167,7 +167,7 @@ Java_com_burntpeanut_core_CoreBridge_nativeCreateNode(JNIEnv* env, jobject /*thi
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_burntpeanut_core_CoreBridge_nativeDestroyNode(JNIEnv* /*env*/, jobject /*thiz*/, jlong handle) {
+Java_com_burntpeanut_core_CoreBridge_nativeDestroyNode(JNIEnv* /*env*/, jclass /*clazz*/, jlong handle) {
     if (handle != 0) {
         ml_node_destroy(static_cast<MLNode>(handle));
     }

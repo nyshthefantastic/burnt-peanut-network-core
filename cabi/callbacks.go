@@ -27,6 +27,9 @@ func wrapCallbacks(callbacks C.MLCallbacks) *NativeCallbacks {
 // ─── Transport ───
 
 func (nc *NativeCallbacks) Send(peerID uintptr, data []byte) int32 {
+	if nc.raw.send == nil {
+		return ML_ERR_INTERNAL
+	}
 	// Convert Go []byte to C pointer + length
 	// C.CBytes copies Go memory into C memory
 	cData := C.CBytes(data)
@@ -72,6 +75,9 @@ func (nc *NativeCallbacks) Disconnect(peerID uintptr) int32 {
 // ─── Hardware Crypto ───
 
 func (nc *NativeCallbacks) SignWithSecureKey(data []byte) ([]byte, int32) {
+	if nc.raw.sign_with_secure_key == nil {
+		return nil, ML_ERR_INTERNAL
+	}
 	cData := C.CBytes(data)
 	defer C.free(cData)
 
@@ -113,12 +119,18 @@ func (nc *NativeCallbacks) GetAttestation() ([]byte, int32) {
 }
 
 func (nc *NativeCallbacks) HasSecureElement() bool {
+	if nc.raw.has_secure_element == nil {
+		return false
+	}
 	return bool(C.ml_shim_has_secure_element(nc.raw.has_secure_element))
 }
 
 // ─── Chunk Storage ───
 
 func (nc *NativeCallbacks) WriteChunk(fileHash []byte, chunkIndex uint32, data []byte) int32 {
+	if nc.raw.write_chunk == nil {
+		return ML_ERR_INTERNAL
+	}
 	cHash := C.CBytes(fileHash)
 	defer C.free(cHash)
 
@@ -137,6 +149,9 @@ func (nc *NativeCallbacks) WriteChunk(fileHash []byte, chunkIndex uint32, data [
 }
 
 func (nc *NativeCallbacks) ReadChunk(fileHash []byte, chunkIndex uint32, bufferSize int) ([]byte, int32) {
+	if nc.raw.read_chunk == nil {
+		return nil, ML_ERR_INTERNAL
+	}
 	cHash := C.CBytes(fileHash)
 	defer C.free(cHash)
 
@@ -154,6 +169,9 @@ func (nc *NativeCallbacks) ReadChunk(fileHash []byte, chunkIndex uint32, bufferS
 }
 
 func (nc *NativeCallbacks) HasChunk(fileHash []byte, chunkIndex uint32) bool {
+	if nc.raw.has_chunk == nil {
+		return false
+	}
 	cHash := C.CBytes(fileHash)
 	defer C.free(cHash)
 
@@ -184,6 +202,9 @@ func (nc *NativeCallbacks) AvailableSpace() int64 {
 // ─── Notifications ───
 
 func (nc *NativeCallbacks) NotifyTransferProgress(peerID uintptr, percent int32) {
+	if nc.raw.notify_transfer_progress == nil {
+		return
+	}
 	C.ml_shim_notify_transfer_progress(
 		nc.raw.notify_transfer_progress,
 		C.uintptr_t(peerID),
@@ -192,6 +213,9 @@ func (nc *NativeCallbacks) NotifyTransferProgress(peerID uintptr, percent int32)
 }
 
 func (nc *NativeCallbacks) NotifyTransferComplete(peerID uintptr, fileHash []byte) {
+	if nc.raw.notify_transfer_complete == nil {
+		return
+	}
 	cHash := C.CBytes(fileHash)
 	defer C.free(cHash)
 
@@ -204,6 +228,9 @@ func (nc *NativeCallbacks) NotifyTransferComplete(peerID uintptr, fileHash []byt
 }
 
 func (nc *NativeCallbacks) NotifyTransferFailed(peerID uintptr, errorCode int32) {
+	if nc.raw.notify_transfer_failed == nil {
+		return
+	}
 	C.ml_shim_notify_transfer_failed(
 		nc.raw.notify_transfer_failed,
 		C.uintptr_t(peerID),
@@ -212,6 +239,9 @@ func (nc *NativeCallbacks) NotifyTransferFailed(peerID uintptr, errorCode int32)
 }
 
 func (nc *NativeCallbacks) NotifyPeerVerified(peerID uintptr, valid bool) {
+	if nc.raw.notify_peer_verified == nil {
+		return
+	}
 	C.ml_shim_notify_peer_verified(
 		nc.raw.notify_peer_verified,
 		C.uintptr_t(peerID),
@@ -220,6 +250,9 @@ func (nc *NativeCallbacks) NotifyPeerVerified(peerID uintptr, valid bool) {
 }
 
 func (nc *NativeCallbacks) NotifyForkDetected(devicePubkey []byte) {
+	if nc.raw.notify_fork_detected == nil {
+		return
+	}
 	cPubkey := C.CBytes(devicePubkey)
 	defer C.free(cPubkey)
 
@@ -231,6 +264,9 @@ func (nc *NativeCallbacks) NotifyForkDetected(devicePubkey []byte) {
 }
 
 func (nc *NativeCallbacks) NotifyBalanceChanged(newBalance int64) {
+	if nc.raw.notify_balance_changed == nil {
+		return
+	}
 	C.ml_shim_notify_balance_changed(
 		nc.raw.notify_balance_changed,
 		C.int64_t(newBalance),
@@ -238,6 +274,9 @@ func (nc *NativeCallbacks) NotifyBalanceChanged(newBalance int64) {
 }
 
 func (nc *NativeCallbacks) NotifyGossipReceived(peerID uintptr) {
+	if nc.raw.notify_gossip_received == nil {
+		return
+	}
 	C.ml_shim_notify_gossip_received(
 		nc.raw.notify_gossip_received,
 		C.uintptr_t(peerID),

@@ -141,17 +141,20 @@ echo "Using NDK toolchain: ${TOOLCHAIN_BIN}"
 echo "  CC arm64: $CC_ARM64"
 echo "  CC x86_64: $CC_X86"
 
+# Android 16KB page-size compatibility for shared libraries.
+PAGE_ALIGN_LDFLAGS="-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384"
+
 out_arm="${ROOT}/build/android/arm64-v8a"
 out_x86="${ROOT}/build/android/x86_64"
 mkdir -p "$out_arm" "$out_x86"
 
 echo "==> arm64-v8a"
-CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC="$CC_ARM64" \
+CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC="$CC_ARM64" CGO_LDFLAGS="$PAGE_ALIGN_LDFLAGS" \
   go build -buildmode=c-shared -trimpath \
   -o "${out_arm}/libcore.so" "${ROOT}/cabi"
 
 echo "==> x86_64 (emulator)"
-CGO_ENABLED=1 GOOS=android GOARCH=amd64 CC="$CC_X86" \
+CGO_ENABLED=1 GOOS=android GOARCH=amd64 CC="$CC_X86" CGO_LDFLAGS="$PAGE_ALIGN_LDFLAGS" \
   go build -buildmode=c-shared -trimpath \
   -o "${out_x86}/libcore.so" "${ROOT}/cabi"
 

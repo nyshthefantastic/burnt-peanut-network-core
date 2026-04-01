@@ -22,14 +22,18 @@ we need to use //export comment so that CGo makes them visible to C.
 */
 import "C"
 import (
+	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"time"
 	"unsafe"
 
 	"github.com/nyshthefantastic/burnt-peanut-network-core/credit"
+	"github.com/nyshthefantastic/burnt-peanut-network-core/dag"
 	"github.com/nyshthefantastic/burnt-peanut-network-core/crypto"
 	"github.com/nyshthefantastic/burnt-peanut-network-core/identity"
 	"github.com/nyshthefantastic/burnt-peanut-network-core/storage"
+	"github.com/nyshthefantastic/burnt-peanut-network-core/transfer"
 	"github.com/nyshthefantastic/burnt-peanut-network-core/wire"
 	pb "github.com/nyshthefantastic/burnt-peanut-network-core/wire/gen"
 
@@ -67,11 +71,13 @@ func ml_node_create(dbPath *C.char, callbacks C.MLCallbacks) C.uintptr_t {
 
 	// Create a node context holding all state
 	node := &NodeContext{
-		Store:     db,
-		Identity:  dev,
-		Callbacks: wrapCallbacks(callbacks),
-		SessionKeys: make(map[uintptr][]byte),
-		SharedSecrets: make(map[uintptr][]byte),
+		Store:          db,
+		Identity:       dev,
+		Callbacks:      wrapCallbacks(callbacks),
+		Transfer:       transfer.NewSessionManager(4),
+		SessionKeys:    make(map[uintptr][]byte),
+		SharedSecrets:  make(map[uintptr][]byte),
+		PeerTransports: make(map[uintptr]*cabiPeerTransport),
 	}
 
 	handle := RegisterHandle(node)
@@ -140,11 +146,6 @@ func ml_get_peers(handle C.uintptr_t) C.MLResult {
 	}
 
 	return makeResult(out, nil)
-
-	// FLOW:
-	//   1. Call node.Store.GetAllPeers(limit)
-	//   2. Length-prefix each proto.Marshal'd peer
-	//   3. Return via makeResult
 }
 
 
@@ -196,15 +197,15 @@ func makeResult(data []byte, err error) C.MLResult {
 
 
 func getNode(handle C.uintptr_t) (*NodeContext, error) {
-    obj := GetHandle(uintptr(handle))
-    if obj == nil {
-        return nil, codeToError(ML_ERR_INVALID_ARG)
-    }
-    node, ok := obj.(*NodeContext)
-    if !ok {
-        return nil, codeToError(ML_ERR_INTERNAL)
-    }
-    return node, nil
+	obj := GetHandle(uintptr(handle))
+	if obj == nil {
+		return nil, codeToError(ML_ERR_INVALID_ARG)
+	}
+	node, ok := obj.(*NodeContext)
+	if !ok {
+		return nil, codeToError(ML_ERR_INTERNAL)
+	}
+	return node, nil
 }
 
 
@@ -267,19 +268,25 @@ func ml_get_chain_summary(handle C.uintptr_t) C.MLResult {
 	if err != nil {
 		return makeResult(nil, err)
 	}
-
-	_ = node
-
-	// NEEDS FROM ENGINEER B:
-	//   dag/chain.go → GetChainHead(db, pubkey) returns (hash, index, error)
-	//
-	// FLOW:
-	//   1. Get own pubkey from node.Identity
-	//   2. Call B's GetChainHead(node.Store, pubkey) for current chain state
-	//   3. Combine with identity cumulative totals
-	//   4. Serialize and return via makeResult
-
-	return makeResult(nil, nil)
+	id, err := node.Store.GetIdentity()
+	if err != nil {
+		return makeResult(nil, err)
+	}
+	summary := &pb.PeerInfo{
+		Pubkey:      id.Pubkey,
+		ChainHead:   id.ChainHead,
+		RecordIndex: id.ChainIndex,
+		Totals: &pb.CumulativeTotals{
+			CumulativeSent:     id.CumulativeSent,
+			CumulativeReceived: id.CumulativeReceived,
+		},
+		LastSeen: time.Now().Unix(),
+	}
+	data, err := proto.Marshal(summary)
+	if err != nil {
+		return makeResult(nil, err)
+	}
+	return makeResult(data, nil)
 }
 
 
@@ -289,31 +296,59 @@ func ml_request_file(handle C.uintptr_t, fileHash *C.uint8_t, fileHashLen C.int3
 	if err != nil {
 		return makeResult(nil, err)
 	}
+	if fileHash == nil || fileHashLen <= 0 {
+		return makeResult(nil, codeToError(ML_ERR_INVALID_ARG))
+	}
 
 	hash := C.GoBytes(unsafe.Pointer(fileHash), fileHashLen)
 
 	// Verify file exists in our metadata
-	_, err = node.Store.GetFileMeta(hash)
+	meta, err := node.Store.GetFileMeta(hash)
 	if err != nil {
 		return makeResult(nil, err)
 	}
+	chunks := make([]uint32, len(meta.GetChunkHashes()))
+	for i := range chunks {
+		chunks[i] = uint32(i)
+	}
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
+		return makeResult(nil, err)
+	}
+	req := &pb.TransferRequest{
+		RequesterPubkey: node.Identity.Pubkey,
+		FileHash:        hash,
+		ChunkIndices:    chunks,
+		Nonce:           nonce,
+		Timestamp:       time.Now().Unix(),
+	}
+	sig, err := cabiSigner{node: node}.Sign(dag.TransferRequestSignableBytes(req))
+	if err != nil {
+		return makeResult(nil, err)
+	}
+	req.Signature = sig
+	if err := node.Store.InsertRequest(req); err != nil {
+		return makeResult(nil, err)
+	}
 
-	// NEEDS FROM ENGINEER C:
-	//   transfer/engine.go → SessionManager.NewSession(peerID, direction)
-	//   transfer/engine.go → TransferSession.RunSession(ctx)
-	//
-	// NEEDS FROM ENGINEER B:
-	//   dag/record.go → NewTransferRequest(requester, fileHash, chunks, nonce)
-	//
-	// FLOW:
-	//   1. Verify file exists: node.Store.GetFileMeta(hash)
-	//   2. Build TransferRequest using B's NewTransferRequest
-	//   3. Store request: node.Store.InsertRequest(req)
-	//   4. Find a peer who has this file (from gossip/peer data)
-	//   5. Create transfer session via C's SessionManager
-	//   6. Session handles: handshake → policy eval → batch transfer → co-signing
-
-	return makeResult(nil, nil)
+	node.mu.Lock()
+	peerID := node.ActivePeer
+	node.mu.Unlock()
+	if peerID == 0 {
+		peers, pErr := node.Store.GetAllPeers(1)
+		if pErr != nil || len(peers) == 0 {
+			return makeResult(nil, fmt.Errorf("no active peer available"))
+		}
+		peerID = uint64ToPeerID(peers[0].GetLastSeen())
+	}
+	if err := startSession(node, peerID, req, transfer.DirectionOutbound); err != nil {
+		return makeResult(nil, err)
+	}
+	reqBytes, err := proto.Marshal(req)
+	if err != nil {
+		return makeResult(nil, err)
+	}
+	return makeResult(reqBytes, nil)
 }
 
 //export ml_on_peer_discovered
@@ -322,19 +357,13 @@ func ml_on_peer_discovered(handle C.uintptr_t, peerID C.uintptr_t) {
 	if err != nil {
 		return
 	}
-
-	_ = node
-	_ = peerID
-
-	// NEEDS FROM ENGINEER C:
-	//   discovery/salted.go → MatchAdvertisement(targetFileHash, advertisedPrefixes, salt)
-	//   discovery/index.go → FileIndex.GetAvailableFiles()
-	//
-	// FLOW:
-	//   1. Native layer detected a new BLE device
-	//   2. Check if their BLE advertisement matches any files we want
-	//   3. If match found, initiate connection via Callbacks.StartScanning
-	//   4. Store/update peer info: node.Store.UpsertPeer(peerInfo)
+	p := peerIDToPubkey(uintptr(peerID))
+	_ = node.Store.UpsertPeer(&pb.PeerInfo{
+		Pubkey:      p,
+		RecordIndex: 0,
+		Totals:      &pb.CumulativeTotals{},
+		LastSeen:    int64(peerID),
+	})
 }
 
 //export ml_on_peer_connected
@@ -344,8 +373,10 @@ func ml_on_peer_connected(handle C.uintptr_t, peerID C.uintptr_t) {
 		return
 	}
 
-	_ = node
-	_ = peerID
+	ensurePeerTransport(node, uintptr(peerID))
+	node.mu.Lock()
+	node.ActivePeer = uintptr(peerID)
+	node.mu.Unlock()
 
 	sessionPub, sessionPriv, err := crypto.GenerateSessionKeyPair()
 
@@ -373,23 +404,8 @@ func ml_on_peer_connected(handle C.uintptr_t, peerID C.uintptr_t) {
 		return
 	}
 
+	// Initial handshake advertises identity, policy, and ephemeral session key.
 	node.Callbacks.Send(uintptr(peerID), data)
-
-	// NEEDS FROM ENGINEER C:
-	//   transfer/engine.go → SessionManager.NewSession(peerID, direction)
-	//   transfer/handshake.go → BuildHandshake(identity, policy, sessionID)
-	//
-	// NEEDS FROM ENGINEER A (you):
-	//   crypto/ecdh.go → GenerateSessionKeypair() for encrypted channel
-	//   wire/codec.go → WriteEnvelope() to send handshake message
-	//
-	// FLOW:
-	//   1. Bluetooth/WiFi connection established
-	//   2. Generate ECDH session keypair for encrypted channel
-	//   3. Create transfer session via C's SessionManager
-	//   4. Build HandshakeMsg with identity, policy, checkpoint
-	//   5. Send via Callbacks.Send → native transport
-	//   6. Session state machine takes over from here
 }
 
 //export ml_on_peer_disconnected
@@ -399,18 +415,26 @@ func ml_on_peer_disconnected(handle C.uintptr_t, peerID C.uintptr_t) {
 		return
 	}
 
-	_ = node
-	_ = peerID
-
-	// NEEDS FROM ENGINEER C:
-	//   transfer/engine.go → SessionManager.RemoveSession(peerID)
-	//   transfer/engine.go → CheckpointTransferState(db, session) for resume
-	//
-	// FLOW:
-	//   1. Connection dropped (peer walked away, Bluetooth out of range)
-	//   2. Save in-progress transfer state for later resume
-	//   3. Clean up the transfer session
-	//   4. Update peer last_seen: node.Store.UpsertPeer(updatedPeer)
+	delete(node.SessionKeys, uintptr(peerID))
+	delete(node.SharedSecrets, uintptr(peerID))
+	node.mu.Lock()
+	delete(node.PeerTransports, uintptr(peerID))
+	if node.ActivePeer == uintptr(peerID) {
+		node.ActivePeer = 0
+	}
+	node.mu.Unlock()
+	for _, s := range node.Transfer.List() {
+		if s != nil && s.PeerID == fmt.Sprintf("%d", uintptr(peerID)) {
+			node.Transfer.Remove(s.ID)
+		}
+	}
+	p := peerIDToPubkey(uintptr(peerID))
+	_ = node.Store.UpsertPeer(&pb.PeerInfo{
+		Pubkey:      p,
+		RecordIndex: 0,
+		Totals:      &pb.CumulativeTotals{},
+		LastSeen:    time.Now().Unix(),
+	})
 }
 
 //export ml_on_data_received
@@ -420,8 +444,9 @@ func ml_on_data_received(handle C.uintptr_t, peerID C.uintptr_t, data *C.uint8_t
 		return
 	}
 
-	_ = node
-	_ = peerID
+	if data == nil || dataLen <= 0 {
+		return
+	}
 	goData := C.GoBytes(unsafe.Pointer(data), dataLen)
 
 	env, err := wire.DecodeEnvelope(goData)
@@ -456,9 +481,11 @@ func ml_on_data_received(handle C.uintptr_t, peerID C.uintptr_t, data *C.uint8_t
 		if payload.ShareRecord != nil {
 			_ = node.Store.InsertRecord(payload.ShareRecord)
 		}
+		ensurePeerTransport(node, uintptr(peerID)).enqueue(env)
 	case *pb.Envelope_TransferRequest:
 		if payload.TransferRequest != nil {
 			_ = node.Store.InsertRequest(payload.TransferRequest)
+			_ = startSession(node, uintptr(peerID), payload.TransferRequest, transfer.DirectionInbound)
 		}
 	case *pb.Envelope_ChunkBatch:
 		// Chunk persistence is delegated to native chunk storage callbacks.
@@ -468,6 +495,9 @@ func ml_on_data_received(handle C.uintptr_t, peerID C.uintptr_t, data *C.uint8_t
 				_ = node.Callbacks.WriteChunk(batch.GetFileHash(), chunk.GetChunkIndex(), chunk.GetData())
 			}
 		}
+		ensurePeerTransport(node, uintptr(peerID)).enqueue(env)
+	case *pb.Envelope_Handshake:
+		ensurePeerTransport(node, uintptr(peerID)).enqueue(env)
 	}
 }
 
@@ -481,4 +511,17 @@ func bytesEqual(a, b []byte) bool {
 		}
 	}
 	return true
+}
+
+func peerIDToPubkey(peerID uintptr) []byte {
+	out := make([]byte, 8)
+	binary.BigEndian.PutUint64(out, uint64(peerID))
+	return out
+}
+
+func uint64ToPeerID(v int64) uintptr {
+	if v < 1 {
+		return 0
+	}
+	return uintptr(v)
 }
