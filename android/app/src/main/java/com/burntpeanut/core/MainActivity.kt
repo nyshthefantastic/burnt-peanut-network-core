@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.File
+import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -18,7 +19,6 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private var nodeHandle: Long = 0L
-    private val testPeerId = 1L
     private val events = ArrayDeque<String>()
     private val clock = SimpleDateFormat("HH:mm:ss", Locale.US)
     private var lastSharedHashHex: String = ""
@@ -54,6 +54,28 @@ class MainActivity : AppCompatActivity() {
         val status = findViewById<TextView>(R.id.status)
         val logView = findViewById<TextView>(R.id.event_log)
         val inputHash = findViewById<EditText>(R.id.input_file_hash)
+        val peerStateView = findViewById<TextView>(R.id.peer_state)
+        val peerListView = findViewById<TextView>(R.id.peer_list)
+
+        fun renderPeers() {
+            val ids = BleTransportManager.connectedPeerIds()
+            val connected = ids.isNotEmpty()
+            peerStateView.text = if (connected) getString(R.string.peer_state_connected) else getString(R.string.peer_state_disconnected)
+            peerListView.text = if (!connected) {
+                getString(R.string.peer_list_empty)
+            } else {
+                ids.joinToString(separator = "\n", prefix = "Connected:\n") { id ->
+                    val addr = BleTransportManager.peerAddress(id) ?: "unknown"
+                    "id=$id addr=$addr"
+                }
+            }
+        }
+        BleTransportManager.setPeerEventsListener(object : BleTransportManager.PeerEventsListener {
+            override fun onPeersChanged() {
+                runOnUiThread { renderPeers() }
+            }
+        })
+        renderPeers()
 
         findViewById<Button>(R.id.btn_create_node).setOnClickListener {
             val db = File(filesDir, "meshledger.db").absolutePath
@@ -70,8 +92,9 @@ class MainActivity : AppCompatActivity() {
                 pushEvent(logView, status, "Create node first")
                 return@setOnClickListener
             }
-            BleTransportManager.connectPeer(testPeerId)
-            pushEvent(logView, status, "Peer connected (id=$testPeerId)")
+            BleTransportManager.start(this)
+            renderPeers()
+            pushEvent(logView, status, "Refreshed BLE scan; waiting for real peer")
         }
 
         findViewById<Button>(R.id.btn_share_sample).setOnClickListener {
@@ -120,22 +143,37 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<Button>(R.id.btn_reconstruct_file).setOnClickListener {
+            val hashHex = inputHash.text.toString().trim().ifEmpty { lastSharedHashHex }
+            if (hashHex.isEmpty()) {
+                pushEvent(logView, status, "Enter/paste a file hash first")
+                return@setOnClickListener
+            }
+            val out = reconstructReceivedFile(hashHex)
+            if (out == null) {
+                pushEvent(logView, status, "Reconstruct failed: no chunks found for hash")
+            } else {
+                pushEvent(logView, status, "Reconstructed file: ${out.absolutePath} (${out.length()} bytes)")
+            }
+        }
+
         findViewById<Button>(R.id.btn_send_bad_payload).setOnClickListener {
             if (nodeHandle == 0L) {
                 pushEvent(logView, status, "Create node first")
                 return@setOnClickListener
             }
-            CoreBridge.nativeOnDataReceived(nodeHandle, testPeerId, byteArrayOf(0x01, 0x02, 0x03))
+            val peerId = BleTransportManager.connectedPeerIds().firstOrNull()
+            if (peerId == null) {
+                pushEvent(logView, status, "No connected BLE peer")
+                return@setOnClickListener
+            }
+            CoreBridge.nativeOnDataReceived(nodeHandle, peerId, byteArrayOf(0x01, 0x02, 0x03))
             pushEvent(logView, status, "Invalid payload injected; app stayed alive")
         }
 
         findViewById<Button>(R.id.btn_disconnect_peer).setOnClickListener {
-            if (nodeHandle == 0L) {
-                pushEvent(logView, status, "Create node first")
-                return@setOnClickListener
-            }
-            BleTransportManager.disconnectPeer(testPeerId)
-            pushEvent(logView, status, "Peer disconnected (id=$testPeerId)")
+            renderPeers()
+            pushEvent(logView, status, "Real BLE disconnect is automatic; moved away from fake test peer")
         }
 
         findViewById<Button>(R.id.btn_destroy_node).setOnClickListener {
@@ -143,7 +181,6 @@ class MainActivity : AppCompatActivity() {
                 pushEvent(logView, status, "No active node")
                 return@setOnClickListener
             }
-            BleTransportManager.disconnectPeer(testPeerId)
             CoreBridge.destroyNode(nodeHandle)
             pushEvent(logView, status, "Node destroyed (handle=$nodeHandle)")
             nodeHandle = 0L
@@ -155,6 +192,7 @@ class MainActivity : AppCompatActivity() {
             CoreBridge.destroyNode(nodeHandle)
             nodeHandle = 0L
         }
+        BleTransportManager.setPeerEventsListener(null)
         super.onDestroy()
         BleTransportManager.stop()
     }
@@ -169,6 +207,35 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun reconstructReceivedFile(hashHexInput: String): File? {
+        val hashHex = hashHexInput.lowercase(Locale.US).filterNot { it.isWhitespace() }
+        if (hashHex.isEmpty()) return null
+
+        val chunkDir = File(filesDir, "chunks")
+        if (!chunkDir.exists()) return null
+
+        val chunkFiles = chunkDir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith("$hashHex:") && it.name.endsWith(".bin") }
+            ?.sortedBy { file ->
+                val indexText = file.name.removePrefix("$hashHex:").removeSuffix(".bin")
+                indexText.toIntOrNull() ?: Int.MAX_VALUE
+            }
+            ?: emptyList()
+        if (chunkFiles.isEmpty()) return null
+
+        val outDir = File(filesDir, "received")
+        if (!outDir.exists()) outDir.mkdirs()
+        val outFile = File(outDir, "$hashHex.bin")
+
+        FileOutputStream(outFile, false).use { fos ->
+            for (chunkFile in chunkFiles) {
+                fos.write(chunkFile.readBytes())
+            }
+            fos.flush()
+        }
+        return outFile
     }
 
     private fun ensureBlePermissions() {
@@ -190,6 +257,16 @@ class MainActivity : AppCompatActivity() {
         }
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), blePermReqCode)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == blePermReqCode) {
+            val granted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (granted) {
+                BleTransportManager.start(this)
+            }
         }
     }
 }

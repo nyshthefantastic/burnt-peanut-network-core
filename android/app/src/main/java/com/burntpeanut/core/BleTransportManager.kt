@@ -21,9 +21,11 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.bluetooth.le.ScanCallback.SCAN_FAILED_ALREADY_STARTED
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.location.LocationManager
 import androidx.core.content.ContextCompat
 import android.util.Log
 import java.nio.ByteBuffer
@@ -31,6 +33,8 @@ import java.nio.ByteOrder
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicInteger
+import android.os.Handler
+import android.os.Looper
 
 /**
  * Real BLE transport for envelope byte exchange (GATT notify + write).
@@ -42,6 +46,8 @@ object BleTransportManager {
     private const val FRAME_HEADER_SIZE = 8
     private const val MAX_CHUNK = 180
     private const val MAX_FRAME_PAYLOAD = MAX_CHUNK - FRAME_HEADER_SIZE
+    private const val MANUFACTURER_ID = 0x1337
+    private val MANUFACTURER_TAG = byteArrayOf(0x42, 0x50, 0x4E) // "BPN"
 
     private val SERVICE_UUID: UUID = UUID.fromString("8f4c1f20-8a41-44c8-a667-f5c4ac6f3010")
     private val CHAR_UUID: UUID = UUID.fromString("8f4c1f21-8a41-44c8-a667-f5c4ac6f3010")
@@ -56,10 +62,24 @@ object BleTransportManager {
     private var outboundGatt: BluetoothGatt? = null
     private var outboundChar: BluetoothGattCharacteristic? = null
     private var outboundDevice: BluetoothDevice? = null
+    private var pendingConnectAddress: String? = null
     private var inboundDevice: BluetoothDevice? = null
     private val seq = AtomicInteger(1)
     private val inbound = mutableMapOf<Long, FrameAssembly>()
     private val inboundLock = Any()
+    private val peerAddresses = mutableMapOf<Long, String>()
+    private val seenScanAddresses = mutableSetOf<String>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile
+    private var legacyScanFallbackActive = false
+
+    interface PeerEventsListener {
+        fun onPeersChanged()
+    }
+    @Volatile
+    private var peerEventsListener: PeerEventsListener? = null
+    @Volatile
+    private var started = false
 
     private data class FrameAssembly(
         val total: Int,
@@ -67,6 +87,11 @@ object BleTransportManager {
     )
 
     fun start(context: Context) {
+        if (started) {
+            Log.i(TAG, "start transport (already started)")
+            startScanning()
+            return
+        }
         appContext = context.applicationContext
         manager = context.getSystemService(BluetoothManager::class.java)
         adapter = manager?.adapter
@@ -80,11 +105,22 @@ object BleTransportManager {
         startGattServer()
         startAdvertising()
         startScanning()
+        started = true
     }
+
+    fun setPeerEventsListener(listener: PeerEventsListener?) {
+        peerEventsListener = listener
+    }
+
+    fun connectedPeerIds(): List<Long> = peers.toList().sorted()
+
+    fun peerAddress(peerId: Long): String? = synchronized(inboundLock) { peerAddresses[peerId] }
 
     fun stop() {
         Log.i(TAG, "stop transport")
+        started = false
         peers.clear()
+        synchronized(inboundLock) { seenScanAddresses.clear() }
         runCatching { scanner?.stopScan(scanCallback) }
         runCatching { advertiser?.stopAdvertising(advertiseCallback) }
         runCatching { outboundGatt?.disconnect(); outboundGatt?.close() }
@@ -97,28 +133,12 @@ object BleTransportManager {
     }
 
     fun connectPeer(peerId: Long) {
-        if (peers.add(peerId)) {
-            val handle = CoreBridge.currentNodeHandle
-            if (handle != 0L) {
-                CoreBridge.nativeOnPeerDiscovered(handle, peerId)
-                CoreBridge.nativeOnPeerConnected(handle, peerId)
-            }
-            Log.i(TAG, "peer connected id=$peerId")
-        }
-        // Keep scanning/radio active as the real BLE path.
-        appContext?.let {
-            if (hasBlePermissions(it)) startScanning()
-        }
+        // Legacy no-op: keep API stable but avoid fake/manual peer injection.
+        appContext?.let { if (hasBlePermissions(it)) startScanning() }
     }
 
     fun disconnectPeer(peerId: Long) {
-        if (peers.remove(peerId)) {
-            val handle = CoreBridge.currentNodeHandle
-            if (handle != 0L) {
-                CoreBridge.nativeOnPeerDisconnected(handle, peerId)
-            }
-            Log.i(TAG, "peer disconnected id=$peerId")
-        }
+        // Legacy no-op: real disconnect events come from BLE callbacks.
     }
 
     fun deliverInbound(peerId: Long, data: ByteArray) {
@@ -245,36 +265,123 @@ object BleTransportManager {
             .build()
         val data = AdvertiseData.Builder()
             .addServiceUuid(android.os.ParcelUuid(SERVICE_UUID))
+            .addManufacturerData(MANUFACTURER_ID, MANUFACTURER_TAG)
             .setIncludeDeviceName(false)
             .build()
-        advertiser?.startAdvertising(settings, data, advertiseCallback)
+        try {
+            advertiser?.startAdvertising(settings, data, advertiseCallback)
+        } catch (se: SecurityException) {
+            Log.e(TAG, "startAdvertising SecurityException: ${se.message}", se)
+        }
     }
 
     private fun startScanning() {
         val ctx = appContext ?: return
         if (!hasBlePermissions(ctx)) return
-        val filters = listOf(
-            ScanFilter.Builder().setServiceUuid(android.os.ParcelUuid(SERVICE_UUID)).build(),
-        )
-        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
-        scanner?.startScan(filters, settings, scanCallback)
+        logLocationState(ctx)
+        runCatching { scanner?.stopScan(scanCallback) }
+        // Broad scan + app-level filtering is more reliable on some vendor stacks.
+        val filters = emptyList<ScanFilter>()
+        val builder = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setReportDelay(0L)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            builder.setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
+                .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Keep legacy scan enabled for compatibility with default advertiser mode.
+            builder.setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
+        }
+        val settings = builder.build()
+        try {
+            scanner?.startScan(filters, settings, scanCallback)
+            Log.i(TAG, "scan started")
+            scheduleLegacyScanFallback()
+        } catch (se: SecurityException) {
+            Log.e(TAG, "startScan SecurityException: ${se.message}", se)
+        }
     }
 
-    private val advertiseCallback = object : AdvertiseCallback() {}
+    private fun scheduleLegacyScanFallback() {
+        if (legacyScanFallbackActive) return
+        legacyScanFallbackActive = true
+        mainHandler.postDelayed({
+            try {
+                if (peers.isNotEmpty() || outboundGatt != null) return@postDelayed
+                val ctx = appContext ?: return@postDelayed
+                if (!hasBlePermissions(ctx)) return@postDelayed
+                val scannerRef = scanner ?: return@postDelayed
+                runCatching { scannerRef.stopScan(scanCallback) }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val legacySettings = ScanSettings.Builder()
+                        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                        .setReportDelay(0L)
+                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                        .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
+                        .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
+                        .setLegacy(true)
+                        .build()
+                    scannerRef.startScan(emptyList(), legacySettings, scanCallback)
+                    Log.i(TAG, "scan fallback started (legacy=true)")
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "scan fallback failed: ${t.message}")
+            } finally {
+                legacyScanFallbackActive = false
+            }
+        }, 5000L)
+    }
+
+    private val advertiseCallback = object : AdvertiseCallback() {
+        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+            Log.i(TAG, "advertising started")
+        }
+
+        override fun onStartFailure(errorCode: Int) {
+            Log.e(TAG, "advertising failed code=$errorCode")
+        }
+    }
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val device = result.device ?: return
-            if (outboundDevice?.address == device.address) return
+            val address = device.address ?: return
+            val advertisesService = result.scanRecord
+                ?.serviceUuids
+                ?.any { it.uuid == SERVICE_UUID } == true
+            val hasTag = result.scanRecord
+                ?.getManufacturerSpecificData(MANUFACTURER_ID)
+                ?.contentEquals(MANUFACTURER_TAG) == true
+            if (!advertisesService && !hasTag) return
+            synchronized(inboundLock) {
+                if (seenScanAddresses.add(address)) {
+                    val uuids = result.scanRecord?.serviceUuids?.joinToString { it.uuid.toString() } ?: "none"
+                    Log.i(TAG, "scan result addr=$address rssi=${result.rssi} uuids=$uuids tag=$hasTag")
+                }
+            }
+            if (peers.isNotEmpty()) return
+            if (outboundGatt != null) return
+            if (pendingConnectAddress == address) return
             val ctx = appContext ?: return
             if (!hasBlePermissions(ctx)) return
-            outboundDevice = device
-            val peerId = peerIdFromAddress(device.address ?: "")
+            pendingConnectAddress = address
+            val peerId = peerIdFromAddress(address)
             val handle = CoreBridge.currentNodeHandle
             if (handle != 0L) {
                 CoreBridge.nativeOnPeerDiscovered(handle, peerId)
             }
+            synchronized(inboundLock) { peerAddresses[peerId] = address }
+            peerEventsListener?.onPeersChanged()
+            Log.i(TAG, "scan discovered addr=$address peerId=$peerId, connecting...")
             outboundGatt = device.connectGatt(ctx, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        }
+
+        override fun onScanFailed(errorCode: Int) {
+            if (errorCode != SCAN_FAILED_ALREADY_STARTED) {
+                Log.e(TAG, "scan failed code=$errorCode")
+            }
         }
     }
 
@@ -282,14 +389,26 @@ object BleTransportManager {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             val handle = CoreBridge.currentNodeHandle
             val peerId = peerIdFromAddress(gatt.device.address ?: "")
+            pendingConnectAddress = null
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && appContext?.let { hasBlePermissions(it) } != true) return
+                outboundDevice = gatt.device
                 gatt.discoverServices()
                 peers.add(peerId)
+                synchronized(inboundLock) { peerAddresses[peerId] = gatt.device.address ?: "unknown" }
                 if (handle != 0L) CoreBridge.nativeOnPeerConnected(handle, peerId)
+                peerEventsListener?.onPeersChanged()
+                Log.i(TAG, "gatt connected addr=${gatt.device.address} peerId=$peerId")
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 peers.remove(peerId)
                 if (handle != 0L) CoreBridge.nativeOnPeerDisconnected(handle, peerId)
+                runCatching { gatt.close() }
+                if (outboundGatt === gatt) outboundGatt = null
+                if (outboundDevice?.address == gatt.device.address) outboundDevice = null
+                outboundChar = null
+                appContext?.let { if (hasBlePermissions(it)) startScanning() }
+                peerEventsListener?.onPeersChanged()
+                Log.w(TAG, "gatt disconnected addr=${gatt.device.address} status=$status")
             }
         }
 
@@ -331,14 +450,17 @@ object BleTransportManager {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 inboundDevice = device
                 peers.add(peerId)
+                synchronized(inboundLock) { peerAddresses[peerId] = device.address ?: "unknown" }
                 if (handle != 0L) {
                     CoreBridge.nativeOnPeerDiscovered(handle, peerId)
                     CoreBridge.nativeOnPeerConnected(handle, peerId)
                 }
+                peerEventsListener?.onPeersChanged()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 if (inboundDevice?.address == device.address) inboundDevice = null
                 peers.remove(peerId)
                 if (handle != 0L) CoreBridge.nativeOnPeerDisconnected(handle, peerId)
+                peerEventsListener?.onPeersChanged()
             }
         }
 
@@ -369,6 +491,18 @@ object BleTransportManager {
                 ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADMIN) == PackageManager.PERMISSION_GRANTED
         }
+    }
+
+    private fun logLocationState(context: Context) {
+        val lm = context.getSystemService(LocationManager::class.java)
+        val enabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            lm?.isLocationEnabled == true
+        } else {
+            val gps = runCatching { lm?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true }.getOrDefault(false)
+            val net = runCatching { lm?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true }.getOrDefault(false)
+            gps || net
+        }
+        Log.i(TAG, "location enabled=$enabled")
     }
 
     private fun peerIdFromAddress(address: String): Long {

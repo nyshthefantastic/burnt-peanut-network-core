@@ -46,6 +46,14 @@ JNIEnv* env_or_null() {
     return env;
 }
 
+bool clear_jni_exception(JNIEnv* env, const char* where) {
+    if (!env || !env->ExceptionCheck()) return false;
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+    __android_log_print(ANDROID_LOG_ERROR, TAG, "%s: cleared Java exception", where);
+    return true;
+}
+
 jbyteArray to_jbyte_array(JNIEnv* env, const uint8_t* data, int32_t len) {
     if (!env || !data || len <= 0) return env ? env->NewByteArray(0) : nullptr;
     jbyteArray arr = env->NewByteArray(len);
@@ -58,7 +66,9 @@ int32_t cb_send(uintptr_t peer_id, const uint8_t* data, int32_t len) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onSend) return ML_ERR_INTERNAL;
     jbyteArray payload = to_jbyte_array(env, data, len);
+    if (!payload && len > 0) return ML_ERR_INTERNAL;
     jint rc = env->CallStaticIntMethod(g_hooks_cls, g_onSend, static_cast<jlong>(peer_id), payload);
+    if (clear_jni_exception(env, "cb_send")) rc = ML_ERR_INTERNAL;
     if (payload) env->DeleteLocalRef(payload);
     return static_cast<int32_t>(rc);
 }
@@ -67,7 +77,9 @@ int32_t cb_start_advertising(const uint8_t* payload, int32_t len) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onStartAdvertising) return ML_ERR_INTERNAL;
     jbyteArray arr = to_jbyte_array(env, payload, len);
+    if (!arr && len > 0) return ML_ERR_INTERNAL;
     jint rc = env->CallStaticIntMethod(g_hooks_cls, g_onStartAdvertising, arr);
+    if (clear_jni_exception(env, "cb_start_advertising")) rc = ML_ERR_INTERNAL;
     if (arr) env->DeleteLocalRef(arr);
     return static_cast<int32_t>(rc);
 }
@@ -75,37 +87,43 @@ int32_t cb_start_advertising(const uint8_t* payload, int32_t len) {
 int32_t cb_stop_advertising() {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onStopAdvertising) return ML_ERR_INTERNAL;
-    return static_cast<int32_t>(env->CallStaticIntMethod(g_hooks_cls, g_onStopAdvertising));
+    jint rc = env->CallStaticIntMethod(g_hooks_cls, g_onStopAdvertising);
+    if (clear_jni_exception(env, "cb_stop_advertising")) return ML_ERR_INTERNAL;
+    return static_cast<int32_t>(rc);
 }
 
 int32_t cb_start_scanning() {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onStartScanning) return ML_ERR_INTERNAL;
-    return static_cast<int32_t>(env->CallStaticIntMethod(g_hooks_cls, g_onStartScanning));
+    jint rc = env->CallStaticIntMethod(g_hooks_cls, g_onStartScanning);
+    if (clear_jni_exception(env, "cb_start_scanning")) return ML_ERR_INTERNAL;
+    return static_cast<int32_t>(rc);
 }
 
 int32_t cb_stop_scanning() {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onStopScanning) return ML_ERR_INTERNAL;
-    return static_cast<int32_t>(env->CallStaticIntMethod(g_hooks_cls, g_onStopScanning));
+    jint rc = env->CallStaticIntMethod(g_hooks_cls, g_onStopScanning);
+    if (clear_jni_exception(env, "cb_stop_scanning")) return ML_ERR_INTERNAL;
+    return static_cast<int32_t>(rc);
 }
 
 int32_t cb_disconnect(uintptr_t peer_id) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onDisconnect) return ML_ERR_INTERNAL;
-    return static_cast<int32_t>(env->CallStaticIntMethod(g_hooks_cls, g_onDisconnect, static_cast<jlong>(peer_id)));
+    jint rc = env->CallStaticIntMethod(g_hooks_cls, g_onDisconnect, static_cast<jlong>(peer_id));
+    if (clear_jni_exception(env, "cb_disconnect")) return ML_ERR_INTERNAL;
+    return static_cast<int32_t>(rc);
 }
 
 int32_t cb_sign_secure(const uint8_t* data, int32_t data_len, uint8_t* sig_out, int32_t sig_out_len) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onSignSecure || !sig_out || sig_out_len <= 0) return ML_ERR_INTERNAL;
     jbyteArray arr = to_jbyte_array(env, data, data_len);
+    if (!arr && data_len > 0) return ML_ERR_INTERNAL;
     auto sig = static_cast<jbyteArray>(env->CallStaticObjectMethod(g_hooks_cls, g_onSignSecure, arr));
     if (arr) env->DeleteLocalRef(arr);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-        __android_log_print(ANDROID_LOG_ERROR, TAG, "cb_sign_secure: Java exception from onSignSecure");
+    if (clear_jni_exception(env, "cb_sign_secure")) {
         return ML_ERR_CRYPTO;
     }
     if (!sig) return ML_ERR_CRYPTO;
@@ -120,6 +138,7 @@ int32_t copy_java_bytes(jmethodID method, uint8_t* out, int32_t out_len) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !method || !out || out_len <= 0) return ML_ERR_INTERNAL;
     auto arr = static_cast<jbyteArray>(env->CallStaticObjectMethod(g_hooks_cls, method));
+    if (clear_jni_exception(env, "copy_java_bytes")) return ML_ERR_INTERNAL;
     if (!arr) return ML_ERR_INTERNAL;
     jsize n = env->GetArrayLength(arr);
     jsize copy_n = std::min<jsize>(n, out_len);
@@ -139,7 +158,9 @@ int32_t cb_get_attestation(uint8_t* att_out, int32_t att_out_len) {
 bool cb_has_secure_element() {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onHasSecureElement) return false;
-    return env->CallStaticBooleanMethod(g_hooks_cls, g_onHasSecureElement) == JNI_TRUE;
+    jboolean ok = env->CallStaticBooleanMethod(g_hooks_cls, g_onHasSecureElement);
+    if (clear_jni_exception(env, "cb_has_secure_element")) return false;
+    return ok == JNI_TRUE;
 }
 
 int32_t cb_write_chunk(const uint8_t* file_hash, int32_t fh_len, uint32_t chunk_index, const uint8_t* data, int32_t data_len) {
@@ -147,7 +168,13 @@ int32_t cb_write_chunk(const uint8_t* file_hash, int32_t fh_len, uint32_t chunk_
     if (!env || !g_hooks_cls || !g_onWriteChunk) return ML_ERR_INTERNAL;
     jbyteArray hash = to_jbyte_array(env, file_hash, fh_len);
     jbyteArray chunk = to_jbyte_array(env, data, data_len);
+    if ((!hash && fh_len > 0) || (!chunk && data_len > 0)) {
+        if (hash) env->DeleteLocalRef(hash);
+        if (chunk) env->DeleteLocalRef(chunk);
+        return ML_ERR_INTERNAL;
+    }
     jint rc = env->CallStaticIntMethod(g_hooks_cls, g_onWriteChunk, hash, static_cast<jint>(chunk_index), chunk);
+    if (clear_jni_exception(env, "cb_write_chunk")) rc = ML_ERR_INTERNAL;
     if (hash) env->DeleteLocalRef(hash);
     if (chunk) env->DeleteLocalRef(chunk);
     return static_cast<int32_t>(rc);
@@ -157,8 +184,10 @@ int32_t cb_read_chunk(const uint8_t* file_hash, int32_t fh_len, uint32_t chunk_i
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onReadChunk || !data_out) return ML_ERR_INTERNAL;
     jbyteArray hash = to_jbyte_array(env, file_hash, fh_len);
+    if (!hash && fh_len > 0) return ML_ERR_INTERNAL;
     auto out = static_cast<jbyteArray>(env->CallStaticObjectMethod(g_hooks_cls, g_onReadChunk, hash, static_cast<jint>(chunk_index)));
     if (hash) env->DeleteLocalRef(hash);
+    if (clear_jni_exception(env, "cb_read_chunk")) return ML_ERR_INTERNAL;
     if (!out) return ML_ERR_NOT_FOUND;
     jsize n = env->GetArrayLength(out);
     jsize copy_n = std::min<jsize>(n, data_out_len);
@@ -174,7 +203,9 @@ bool cb_has_chunk(const uint8_t* file_hash, int32_t fh_len, uint32_t chunk_index
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onHasChunk) return false;
     jbyteArray hash = to_jbyte_array(env, file_hash, fh_len);
+    if (!hash && fh_len > 0) return false;
     jboolean ok = env->CallStaticBooleanMethod(g_hooks_cls, g_onHasChunk, hash, static_cast<jint>(chunk_index));
+    if (clear_jni_exception(env, "cb_has_chunk")) ok = JNI_FALSE;
     if (hash) env->DeleteLocalRef(hash);
     return ok == JNI_TRUE;
 }
@@ -183,7 +214,9 @@ int32_t cb_delete_file(const uint8_t* file_hash, int32_t fh_len) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onDeleteFile) return ML_ERR_INTERNAL;
     jbyteArray hash = to_jbyte_array(env, file_hash, fh_len);
+    if (!hash && fh_len > 0) return ML_ERR_INTERNAL;
     jint rc = env->CallStaticIntMethod(g_hooks_cls, g_onDeleteFile, hash);
+    if (clear_jni_exception(env, "cb_delete_file")) rc = ML_ERR_INTERNAL;
     if (hash) env->DeleteLocalRef(hash);
     return static_cast<int32_t>(rc);
 }
@@ -191,13 +224,16 @@ int32_t cb_delete_file(const uint8_t* file_hash, int32_t fh_len) {
 int64_t cb_available_space() {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onAvailableSpace) return 0;
-    return static_cast<int64_t>(env->CallStaticLongMethod(g_hooks_cls, g_onAvailableSpace));
+    jlong n = env->CallStaticLongMethod(g_hooks_cls, g_onAvailableSpace);
+    if (clear_jni_exception(env, "cb_available_space")) return 0;
+    return static_cast<int64_t>(n);
 }
 
 void notify_void_peer_int(jmethodID method, uintptr_t peer_id, int32_t value) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !method) return;
     env->CallStaticVoidMethod(g_hooks_cls, method, static_cast<jlong>(peer_id), static_cast<jint>(value));
+    clear_jni_exception(env, "notify_void_peer_int");
 }
 
 void cb_notify_transfer_progress(uintptr_t peer_id, int32_t percent) { notify_void_peer_int(g_onNotifyTransferProgress, peer_id, percent); }
@@ -207,7 +243,9 @@ void cb_notify_transfer_complete(uintptr_t peer_id, const uint8_t* file_hash, in
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onNotifyTransferComplete) return;
     jbyteArray hash = to_jbyte_array(env, file_hash, fh_len);
+    if (!hash && fh_len > 0) return;
     env->CallStaticVoidMethod(g_hooks_cls, g_onNotifyTransferComplete, static_cast<jlong>(peer_id), hash);
+    clear_jni_exception(env, "cb_notify_transfer_complete");
     if (hash) env->DeleteLocalRef(hash);
 }
 
@@ -215,13 +253,16 @@ void cb_notify_peer_verified(uintptr_t peer_id, bool valid) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onNotifyPeerVerified) return;
     env->CallStaticVoidMethod(g_hooks_cls, g_onNotifyPeerVerified, static_cast<jlong>(peer_id), valid ? JNI_TRUE : JNI_FALSE);
+    clear_jni_exception(env, "cb_notify_peer_verified");
 }
 
 void cb_notify_fork_detected(const uint8_t* device_pubkey, int32_t pk_len) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onNotifyForkDetected) return;
     jbyteArray key = to_jbyte_array(env, device_pubkey, pk_len);
+    if (!key && pk_len > 0) return;
     env->CallStaticVoidMethod(g_hooks_cls, g_onNotifyForkDetected, key);
+    clear_jni_exception(env, "cb_notify_fork_detected");
     if (key) env->DeleteLocalRef(key);
 }
 
@@ -229,12 +270,14 @@ void cb_notify_balance_changed(int64_t new_balance) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onNotifyBalanceChanged) return;
     env->CallStaticVoidMethod(g_hooks_cls, g_onNotifyBalanceChanged, static_cast<jlong>(new_balance));
+    clear_jni_exception(env, "cb_notify_balance_changed");
 }
 
 void cb_notify_gossip_received(uintptr_t peer_id) {
     JNIEnv* env = env_or_null();
     if (!env || !g_hooks_cls || !g_onNotifyGossipReceived) return;
     env->CallStaticVoidMethod(g_hooks_cls, g_onNotifyGossipReceived, static_cast<jlong>(peer_id));
+    clear_jni_exception(env, "cb_notify_gossip_received");
 }
 
 MLCallbacks make_callbacks() {
