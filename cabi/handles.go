@@ -1,4 +1,6 @@
-package cabi
+//go:build cgo
+
+package main
 
 var registry = &handleRegistry{
 	handles: make(map[uintptr]interface{}),

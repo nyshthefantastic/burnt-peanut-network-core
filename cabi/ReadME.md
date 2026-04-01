@@ -16,7 +16,7 @@ Android App (Kotlin)          iOS App (Swift)
         Go Core (crypto, wire, storage, identity)
 ```
 
-The cabi/ package is the **translator** between the C world and the Go world.
+The cabi directory is built as **`package main`** with CGO (`-buildmode=c-shared` for Android, `c-archive` for iOS). It is the **translator** between the C world and the Go world. When CGO is off, a tiny `stub_nocgo.go` satisfies `go test ./...` / `go vet`.
 
 ---
 
@@ -174,11 +174,10 @@ These are wrapped in a Go-friendly `NativeCallbacks` struct so the rest of the G
 
 ### Build Integration (Makefile)
 
-Cross-compilation targets:
+Cross-compilation targets (see repo root `Makefile` and `scripts/build-android-lib.sh`):
 
-- Android ARM64 (.so shared library)
-- Android x86_64 (.so for emulator)
-- iOS ARM64 (.a static archive, c-archive mode)
+- Android `arm64-v8a` and `x86_64` → `libcore.so` (then copy into `android/.../jniLibs/`)
+- iOS ARM64 → `libcore.a` (c-archive mode)
 
 ---
 
@@ -227,12 +226,13 @@ Cross-compilation targets:
 ```
 cabi/
 ├── core.h            ← C header (the contract)
-├── errors.go         ← Error code mapping (Go ↔ C)
+├── error.go          ← Error code mapping (Go ↔ C)
 ├── handles.go        ← Handle registry (safe object references for C)
-├── shims.c           ← C wrappers for calling function pointers
+├── shims.c / shims.h ← C wrappers for calling function pointers
 ├── exports.go        ← //export functions C can call
 ├── callbacks.go      ← Go wrappers for calling native code
-└── Makefile          ← Cross-compilation targets
+├── main.go           ← empty main (required for c-shared / c-archive)
+└── stub_nocgo.go     ← placeholder when CGO is disabled
 ```
 
 ## Memory Rules

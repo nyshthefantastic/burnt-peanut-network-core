@@ -50,6 +50,10 @@ Run CI checks:
 make ci
 ```
 
+## Android app
+
+The `android/` module is a small demo that links the Go **`cabi`** shared library (`libcore.so`) and runs a JNI smoke test. Build the `.so` files and sync them into `jniLibs`, then open `android/` in Android Studio. See [android/README.md](android/README.md).
+
 ## Policy Levels
 
 - `POLICY_NONE`: no balance gate, only safety checks.

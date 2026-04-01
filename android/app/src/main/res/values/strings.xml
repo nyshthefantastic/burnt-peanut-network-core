@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Burnt Peanut Core</string>
+    <string name="run_smoke_test">Smoke test node</string>
+    <string name="status_hint">Build libcore.so, sync jniLibs, then tap the button.</string>
+</resources>

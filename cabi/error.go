@@ -1,4 +1,6 @@
-package cabi
+//go:build cgo
+
+package main
 
 import (
 	"database/sql"

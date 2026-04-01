@@ -1,4 +1,9 @@
-.PHONY: proto clean build-android-arm64 build-android-x86 build-ios test ci
+.PHONY: proto clean build-android-lib build-android-arm64 build-android-x86 build-ios test ci
+
+# Android NDK: set ANDROID_NDK to the NDK root. Host prebuilt dir is detected automatically.
+ANDROID_HOST_PREBUILT := $(shell case "$$(uname -s)" in Darwin*) case "$$(uname -m)" in arm64) echo darwin-arm64;; *) echo darwin-x86_64;; esac ;; MINGW*|MSYS*) echo windows-x86_64 ;; *) echo linux-x86_64 ;; esac)
+ANDROID_CC_ARM64 ?= $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(ANDROID_HOST_PREBUILT)/bin/aarch64-linux-android21-clang
+ANDROID_CC_X86  ?= $(ANDROID_NDK)/toolchains/llvm/prebuilt/$(ANDROID_HOST_PREBUILT)/bin/x86_64-linux-android21-clang
 
 proto:
 	@mkdir -p wire/gen
@@ -10,21 +15,25 @@ proto:
 
 # ─── Android ───
 
+# Preferred: ./scripts/build-android-lib.sh (same outputs + clearer errors)
+build-android-lib:
+	./scripts/build-android-lib.sh
+
 build-android-arm64:
 	CGO_ENABLED=1 \
 	GOOS=android \
 	GOARCH=arm64 \
-	CC=$(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang \
-	go build -buildmode=c-shared \
-		-o build/android/arm64/libcore.so \
+	CC=$(ANDROID_CC_ARM64) \
+	go build -buildmode=c-shared -trimpath \
+		-o build/android/arm64-v8a/libcore.so \
 		./cabi/
 
 build-android-x86:
 	CGO_ENABLED=1 \
 	GOOS=android \
 	GOARCH=amd64 \
-	CC=$(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang \
-	go build -buildmode=c-shared \
+	CC=$(ANDROID_CC_X86) \
+	go build -buildmode=c-shared -trimpath \
 		-o build/android/x86_64/libcore.so \
 		./cabi/
 
@@ -42,7 +51,7 @@ build-ios:
 
 # ─── All ───
 
-build-all: build-android-arm64 build-android-x86 build-ios
+build-all: build-android-lib build-ios
 
 test:
 	go test ./...

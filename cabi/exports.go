@@ -1,4 +1,6 @@
-package cabi
+//go:build cgo
+
+package main
 
 /*
 every function in the core.h file must be exported to be called from C.
