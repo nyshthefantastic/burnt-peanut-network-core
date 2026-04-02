@@ -5,6 +5,7 @@
     <string name="connect_peer">2) Refresh BLE Scan</string>
     <string name="connect_by_mac">2b) Connect by MAC</string>
     <string name="share_sample_file">3) Share Sample File</string>
+    <string name="share_real_file">3b) Share File from Device</string>
     <string name="request_file">4) Request File (entered hash)</string>
     <string name="reconstruct_file">5) Reconstruct Received File</string>
     <string name="send_bad_payload">6) Send Invalid Payload</string>
@@ -16,6 +17,9 @@
     <string name="peer_state_disconnected">BLE peers: disconnected</string>
     <string name="peer_state_connected">BLE peers: connected</string>
     <string name="peer_list_empty">No peers discovered yet.</string>
+    <string name="transfer_incoming">Incoming Transfer</string>
+    <string name="transfer_waiting">Waiting for data…</string>
+    <string name="transfer_sending">Sending file…</string>
     <string name="event_log">Event Log</string>
     <string name="event_log_empty">No events yet.\nTip: long-press log text to copy.</string>
 </resources>

@@ -74,6 +74,13 @@
             android:layout_marginTop="8dp"
             android:text="@string/share_sample_file" />
 
+        <Button
+            android:id="@+id/btn_share_file"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/share_real_file" />
+
         <EditText
             android:id="@+id/input_file_hash"
             android:layout_width="match_parent"
@@ -125,6 +132,42 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/destroy_node" />
+
+        <LinearLayout
+            android:id="@+id/transfer_status_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#E8F5E9"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/transfer_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/transfer_incoming"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <ProgressBar
+                android:id="@+id/transfer_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:max="100"
+                android:progress="0" />
+
+            <TextView
+                android:id="@+id/transfer_detail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/transfer_waiting"
+                android:textSize="13sp" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/log_title"

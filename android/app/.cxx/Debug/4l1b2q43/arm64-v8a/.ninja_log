@@ -10,3 +10,6 @@
 1100	1223	1775133311982142732	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/arm64-v8a/libmljni.so	1d2bef7dfce5b1f4
 2	790	1775135485574553620	CMakeFiles/mljni.dir/ml_jni.cpp.o	995e5854b4c0b631
 790	901	1775135485687094704	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/arm64-v8a/libmljni.so	1d2bef7dfce5b1f4
+0	9	0	clean	3d16574b686fc338
+2	960	1775136527159693595	CMakeFiles/mljni.dir/ml_jni.cpp.o	995e5854b4c0b631
+960	1075	1775136527278855514	/Users/siyum/Documents/Personal/Hackthons/Others/p2p/burnt-peanut-network-core/android/app/build/intermediates/cxx/Debug/4l1b2q43/obj/arm64-v8a/libmljni.so	1d2bef7dfce5b1f4

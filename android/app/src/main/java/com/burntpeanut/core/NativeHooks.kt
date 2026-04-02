@@ -18,6 +18,20 @@ object NativeHooks {
     private const val ML_OK = 0
     private const val ML_ERR_INTERNAL = 7
 
+    interface TransferEventsListener {
+        fun onChunkReceived(fileHashHex: String, chunkIndex: Int, byteCount: Int)
+        fun onProgress(peerId: Long, percent: Int)
+        fun onComplete(peerId: Long, fileHashHex: String)
+        fun onFailed(peerId: Long, errorCode: Int)
+    }
+
+    @Volatile
+    private var transferListener: TransferEventsListener? = null
+
+    fun setTransferEventsListener(listener: TransferEventsListener?) {
+        transferListener = listener
+    }
+
     private val chunkStore = ConcurrentHashMap<String, ByteArray>()
     @Volatile
     private var cachedKeyPair: KeyPair? = null
@@ -87,6 +101,8 @@ object NativeHooks {
             chunkStore[key] = data
             val persisted = persistChunk(fileHash, chunkIndex, data)
             Log.d(TAG, "writeChunk ok key=$key bytes=${data.size} persisted=$persisted")
+            val hashHex = fileHash.joinToString("") { "%02x".format(it) }
+            transferListener?.onChunkReceived(hashHex, chunkIndex, data.size)
             ML_OK
         }.getOrElse {
             Log.e(TAG, "writeChunk failed key=$key bytes=${data.size}: ${it.message}", it)
@@ -121,16 +137,20 @@ object NativeHooks {
     @JvmStatic
     fun onNotifyTransferProgress(peerId: Long, percent: Int) {
         Log.i(TAG, "progress peer=$peerId percent=$percent")
+        transferListener?.onProgress(peerId, percent)
     }
 
     @JvmStatic
     fun onNotifyTransferComplete(peerId: Long, fileHash: ByteArray) {
-        Log.i(TAG, "complete peer=$peerId fileHash=${fileHash.size}B")
+        val hashHex = fileHash.joinToString("") { "%02x".format(it) }
+        Log.i(TAG, "complete peer=$peerId fileHash=$hashHex")
+        transferListener?.onComplete(peerId, hashHex)
     }
 
     @JvmStatic
     fun onNotifyTransferFailed(peerId: Long, errorCode: Int) {
         Log.w(TAG, "failed peer=$peerId error=$errorCode")
+        transferListener?.onFailed(peerId, errorCode)
     }
 
     @JvmStatic
