@@ -111,7 +111,14 @@ object BleTransportManager {
                 if (gattServer == null) startGattServer()
                 startAdvertising()
             }
-            startScanning()
+            val hasActiveLink = peers.isNotEmpty() || outboundGatt != null || inboundDevice != null
+            Log.i(TAG, "start already-started state peers=${peers.size} outbound=${outboundGatt != null} inbound=${inboundDevice != null}")
+            if (!hasActiveLink) {
+                // Only resume discovery when no active BLE link exists.
+                startScanning(forceRestart = true)
+            } else {
+                Log.i(TAG, "skip scan restart while active link present")
+            }
             return
         }
         appContext = context.applicationContext
@@ -126,7 +133,7 @@ object BleTransportManager {
         }
         startGattServer()
         startAdvertising()
-        startScanning()
+        startScanning(forceRestart = false)
         started = true
     }
 
@@ -158,7 +165,7 @@ object BleTransportManager {
 
     fun connectPeer(peerId: Long) {
         // Legacy no-op: keep API stable but avoid fake/manual peer injection.
-        appContext?.let { if (hasBlePermissions(it)) startScanning() }
+        appContext?.let { if (hasBlePermissions(it)) startScanning(forceRestart = false) }
     }
 
     fun connectToAddress(address: String): Boolean {
@@ -315,6 +322,7 @@ object BleTransportManager {
         // Keep primary ADV packet tiny for better compatibility.
         val data = AdvertiseData.Builder()
             .addManufacturerData(MANUFACTURER_ID, MANUFACTURER_TAG)
+            .addServiceUuid(ParcelUuid(SERVICE_UUID))
             .setIncludeDeviceName(false)
             .build()
         // Put UUID into scan response so scanners can still match by service.
@@ -329,16 +337,23 @@ object BleTransportManager {
         }
     }
 
-    private fun startScanning() {
+    private fun startScanning(forceRestart: Boolean) {
         val ctx = appContext ?: return
         if (!hasBlePermissions(ctx)) return
         val now = System.currentTimeMillis()
-        if (scanActive) return
+        if (forceRestart && scanActive) {
+            runCatching { scanner?.stopScan(scanCallback) }
+            scanActive = false
+        } else if (scanActive) {
+            return
+        }
         if (now < scanBlockedUntilMs) {
             Log.w(TAG, "scan temporarily blocked; retry in ${scanBlockedUntilMs - now}ms")
             return
         }
-        if (now - lastScanKickMs < 2500L) return
+        if (now - lastScanKickMs < 2500L && !forceRestart) {
+            return
+        }
         lastScanKickMs = now
         logLocationState(ctx)
         loggedFirstRawScan = false
@@ -351,15 +366,21 @@ object BleTransportManager {
                 .setManufacturerData(MANUFACTURER_ID, MANUFACTURER_TAG)
                 .build(),
         )
-        val settings = ScanSettings.Builder()
+        val settingsBuilder = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setReportDelay(0L)
-            .build()
+        val settings = settingsBuilder.build()
+        val pm = ctx.getSystemService(PowerManager::class.java)
+        val interactive = pm?.isInteractive == true
         try {
-            // Filtered scan avoids Android throttling of unfiltered background/screen-off scans.
-            scanner?.startScan(filters, settings, scanCallback)
+            // Use broad scan while interactive to avoid vendor-specific filter misses.
+            if (interactive) {
+                scanner?.startScan(scanCallback)
+            } else {
+                scanner?.startScan(filters, settings, scanCallback)
+            }
             scanActive = true
-            Log.i(TAG, "scan started (filtered)")
+            Log.i(TAG, "scan started")
         } catch (se: SecurityException) {
             Log.e(TAG, "startScan SecurityException: ${se.message}", se)
         }
@@ -375,7 +396,7 @@ object BleTransportManager {
         }
     }
 
-    private val scanCallback = object : ScanCallback() {
+    private val scanCallback: ScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             sawAnyScanCallback = true
             val device = result.device ?: return
@@ -400,6 +421,12 @@ object BleTransportManager {
             if (peers.isNotEmpty()) return
             if (outboundGatt != null) return
             if (pendingConnectAddress == address) return
+            val localAddr = adapter?.address?.uppercase()
+            if (!localAddr.isNullOrBlank() && localAddr != "02:00:00:00:00:00" && localAddr >= address) {
+                // Deterministic tie-breaker to avoid both phones initiating at once.
+                Log.i(TAG, "skip outbound connect by tie-break local=$localAddr remote=$address")
+                return
+            }
             val ctx = appContext ?: return
             if (!hasBlePermissions(ctx)) return
             pendingConnectAddress = address
@@ -435,7 +462,7 @@ object BleTransportManager {
         }
     }
 
-    private val gattCallback = object : BluetoothGattCallback() {
+    private val gattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             val handle = CoreBridge.currentNodeHandle
             val peerId = peerIdFromAddress(gatt.device.address ?: "")
@@ -444,6 +471,13 @@ object BleTransportManager {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && appContext?.let { hasBlePermissions(it) } != true) return
                 outboundDevice = gatt.device
                 gatt.discoverServices()
+                // Avoid scan churn while an active link exists.
+                try {
+                    scanner?.stopScan(scanCallback)
+                } catch (_: Throwable) {
+                }
+                scanActive = false
+                Log.i(TAG, "scan paused on gatt connected")
                 peers.add(peerId)
                 synchronized(inboundLock) { peerAddresses[peerId] = gatt.device.address ?: "unknown" }
                 if (handle != 0L) CoreBridge.nativeOnPeerConnected(handle, peerId)
@@ -456,7 +490,12 @@ object BleTransportManager {
                 if (outboundGatt === gatt) outboundGatt = null
                 if (outboundDevice?.address == gatt.device.address) outboundDevice = null
                 outboundChar = null
-                appContext?.let { if (hasBlePermissions(it)) startScanning() }
+                val hasActiveLink = peers.isNotEmpty() || outboundGatt != null || inboundDevice != null
+                if (!hasActiveLink) {
+                    appContext?.let { if (hasBlePermissions(it)) startScanning(forceRestart = false) }
+                } else {
+                    Log.i(TAG, "skip scan restart on disconnect; active link remains peers=${peers.size} outbound=${outboundGatt != null} inbound=${inboundDevice != null}")
+                }
                 peerEventsListener?.onPeersChanged()
                 Log.w(TAG, "gatt disconnected addr=${gatt.device.address} status=$status")
             }
