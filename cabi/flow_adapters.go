@@ -67,9 +67,6 @@ func (t *cabiPeerTransport) linkDelegate(surv *cabiPeerTransport) {
 			t.incomingClosed = true
 			close(t.incoming)
 			t.delegateMu.Unlock()
-			// #region agent log
-			fmt.Printf("[agent][H17] linkDelegate droppedPeer=%d -> survivorPeer=%d\n", t.peerID, surv.peerID)
-			// #endregion
 			return
 		}
 	}
@@ -114,18 +111,9 @@ func (t *cabiPeerTransport) Send(env *pb.Envelope) error {
 	if err != nil {
 		return err
 	}
-	// #region agent log
-	fmt.Printf("[agent][H7] cabiPeerTransport.Send peer=%d bytes=%d payload=%T\n", cur.peerID, len(data), env.Payload)
-	// #endregion
 	if rc := cur.callbacks.Send(cur.peerID, data); rc != ML_OK {
-		// #region agent log
-		fmt.Printf("[agent][H7] cabiPeerTransport.Send failed peer=%d rc=%d\n", cur.peerID, int(rc))
-		// #endregion
 		return codeToError(rc)
 	}
-	// #region agent log
-	fmt.Printf("[agent][H7] cabiPeerTransport.Send ok peer=%d bytes=%d\n", cur.peerID, len(data))
-	// #endregion
 	return nil
 }
 
@@ -330,9 +318,6 @@ func startSession(node *NodeContext, peerID uintptr, req *pb.TransferRequest, di
 	sessionID := fmt.Sprintf("%d:%x", peerID, req.GetFileHash())
 	peerKey := fmt.Sprintf("%d", peerID)
 	s, ok := node.Transfer.Get(sessionID)
-	// #region agent log
-	fmt.Printf("[agent][H6] startSession peerID=%d dir=%s sessionID=%s existing=%v chunks=%d\n", peerID, direction, sessionID, ok, len(req.GetChunkIndices()))
-	// #endregion
 	if !ok {
 		s = transfer.NewSession(
 			peerKey,
@@ -354,7 +339,9 @@ func startSession(node *NodeContext, peerID uintptr, req *pb.TransferRequest, di
 			return err
 		}
 		go func(sess *transfer.TransferSession) {
-			_ = sess.RunSession(context.Background())
+			if err := sess.RunSession(context.Background()); err != nil {
+				fmt.Printf("[cabi][session] run failed sessionID=%s peer=%s dir=%s err=%v\n", sess.ID, sess.PeerID, sess.Direction, err)
+			}
 			node.Transfer.RemoveCompleted()
 		}(s)
 		return nil

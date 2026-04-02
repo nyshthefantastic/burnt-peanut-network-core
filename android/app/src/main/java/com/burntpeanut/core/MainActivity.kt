@@ -163,19 +163,6 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             val chunkCount = inputChunkCount.text.toString().trim().toIntOrNull()
-            // #region agent log
-            DebugAgent.emit(
-                "H10",
-                "MainActivity:btn_request_file:beforeNative",
-                "request click",
-                mapOf(
-                    "nodeHandle" to nodeHandle,
-                    "hashLen" to hashBytes.size,
-                    "chunkCount" to (chunkCount ?: -1),
-                    "ble" to BleTransportManager.debugState().toString(),
-                ),
-            )
-            // #endregion
             val response = if (chunkCount != null && chunkCount > 0) {
                 CoreBridge.nativeRequestFileWithChunkCount(nodeHandle, hashBytes, chunkCount)
             } else {
@@ -183,25 +170,9 @@ class MainActivity : AppCompatActivity() {
             }
             if (response == null) {
                 val code = CoreBridge.nativeRequestFileCode(nodeHandle, hashBytes)
-                // #region agent log
-                DebugAgent.emit(
-                    "H10",
-                    "MainActivity:btn_request_file:afterNative",
-                    "request null",
-                    mapOf("code" to code, "ble" to BleTransportManager.debugState().toString()),
-                )
-                // #endregion
                 val hint = if (code == 2) " (hint: enter sender chunk count)" else ""
                 pushEvent(logView, status, "Request returned no payload (code=$code ${errorName(code)})$hint")
             } else {
-                // #region agent log
-                DebugAgent.emit(
-                    "H10",
-                    "MainActivity:btn_request_file:afterNative",
-                    "request payload",
-                    mapOf("bytes" to response.size, "ble" to BleTransportManager.debugState().toString()),
-                )
-                // #endregion
                 pushEvent(logView, status, "Request returned ${response.size} bytes")
             }
         }
@@ -217,14 +188,6 @@ class MainActivity : AppCompatActivity() {
             val matching = chunkDir.listFiles()
                 ?.count { it.isFile && it.name.startsWith("$normalized:") && it.name.endsWith(".bin") }
                 ?: 0
-            // #region agent log
-            DebugAgent.emit(
-                "H14",
-                "MainActivity:btn_reconstruct_file:before",
-                "reconstruct click",
-                mapOf("hash" to normalized, "matchingChunks" to matching),
-            )
-            // #endregion
             val out = reconstructReceivedFile(hashHex)
             if (out == null) {
                 pushEvent(logView, status, "Reconstruct failed: no chunks found for hash")
@@ -275,25 +238,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // #region agent log
-        DebugAgent.emit(
-            "H11",
-            "MainActivity:onStart",
-            "activity visible",
-            mapOf("nodeHandle" to nodeHandle, "ble" to BleTransportManager.debugState().toString()),
-        )
-        // #endregion
     }
 
     override fun onStop() {
-        // #region agent log
-        DebugAgent.emit(
-            "H11",
-            "MainActivity:onStop",
-            "activity backgrounded",
-            mapOf("nodeHandle" to nodeHandle, "ble" to BleTransportManager.debugState().toString()),
-        )
-        // #endregion
         super.onStop()
     }
 

@@ -51,6 +51,10 @@ object BleTransportManager {
     /** CCCD enable often completes with 133 ([BluetoothGatt.GATT_ERROR]) during link teardown; ignore and retry on live links only. */
     private const val CCCD_RETRY_DELAY_MS = 150L
     private const val CCCD_MAX_ATTEMPTS = 3
+    /** Delay between GATT notifications so the ATT queue drains reliably (API 33+ pacing must not rely solely on [onNotificationSent]). */
+    private const val NOTIFY_PACE_MS = 15L
+    /** Delay after each central [BluetoothGatt.writeCharacteristic] success before starting the next; avoids flooding the peripheral ATT queue. */
+    private const val WRITE_PACE_MS = 15L
     private val peers = CopyOnWriteArraySet<Long>()
     private const val FRAME_MAGIC: Short = 0x4250 // "BP"
     private const val FRAME_HEADER_SIZE = 8
@@ -107,10 +111,15 @@ object BleTransportManager {
     private var cccdWritesIssued = 0
     private val gattWriteBusyRetryRunnable = Runnable { kickOutboundWrite() }
     private val cccdRetryRunnable = Runnable { writeOutboundCccdNow() }
+    /** True while a delayed [outboundWriteDrainRunnable] will run; blocks eager [kickOutboundWrite] during pacing. */
+    @Volatile
+    private var outboundWriteDrainPosted = false
+    private val outboundWriteDrainRunnable = Runnable {
+        outboundWriteDrainPosted = false
+        kickOutboundWrite()
+    }
     /** Serialized notify PDUs (back-to-back notifyCharacteristicChanged often drops on server). */
     private val notifyFrameQueue = ConcurrentLinkedQueue<ByteArray>()
-    @Volatile
-    private var notifyInFlight = false
     @Volatile
     private var notifyDrainPosted = false
     private val notifyChainLock = Any()
@@ -122,19 +131,11 @@ object BleTransportManager {
             val service = server.getService(SERVICE_UUID) ?: run { endNotifyChain(); return }
             val characteristic = service.getCharacteristic(CHAR_UUID) ?: run { endNotifyChain(); return }
             characteristic.value = frame
-            // #region agent log
-            DebugAgent.emit(
-                "H4",
-                "BleTransportManager:notifyDrain",
-                "notify frame",
-                mapOf("frameBytes" to frame.size, "lastAttMtu" to lastAttMtu, "q" to notifyFrameQueue.size),
-            )
-            // #endregion
             server.notifyCharacteristicChanged(device, characteristic, false)
             if (notifyFrameQueue.isEmpty()) {
                 endNotifyChain()
             } else {
-                mainHandler.post(this)
+                mainHandler.postDelayed(this, NOTIFY_PACE_MS)
             }
         }
 
@@ -220,14 +221,6 @@ object BleTransportManager {
             CoreBridge.nativeOnPeerConnected(nodeHandle, pid)
             Log.i(TAG, "rehydrateCorePeerLifecycle peerId=$pid")
         }
-        // #region agent log
-        DebugAgent.emit(
-            "H19",
-            "BleTransportManager:rehydrateCorePeerLifecycle",
-            "replay discover+connected for live BLE peers",
-            mapOf("count" to ids.size, "nodeHandle" to nodeHandle),
-        )
-        // #endregion
         peerEventsListener?.onPeersChanged()
     }
 
@@ -262,11 +255,12 @@ object BleTransportManager {
         runCatching { gattServer?.close() }
         gattServer = null
         notifyFrameQueue.clear()
-        notifyInFlight = false
         synchronized(notifyChainLock) { notifyDrainPosted = false }
         mainHandler.removeCallbacks(notifyChainRunnable)
         mainHandler.removeCallbacks(gattWriteBusyRetryRunnable)
         mainHandler.removeCallbacks(cccdRetryRunnable)
+        mainHandler.removeCallbacks(outboundWriteDrainRunnable)
+        outboundWriteDrainPosted = false
         outboundWriteQueue.clear()
         outboundWriteInFlight = false
         consecutiveOutboundWriteFailures = 0
@@ -310,14 +304,6 @@ object BleTransportManager {
         val handle = CoreBridge.currentNodeHandle
         if (handle != 0L) {
             Log.d(TAG, "deliverInbound peer=$peerId bytes=${data.size}")
-            // #region agent log
-            DebugAgent.emit(
-                "H5",
-                "BleTransportManager:deliverInbound",
-                "to core",
-                mapOf("peerId" to peerId, "bytes" to data.size),
-            )
-            // #endregion
             CoreBridge.nativeOnDataReceived(handle, peerId, data)
         }
     }
@@ -410,10 +396,6 @@ object BleTransportManager {
 
     private fun scheduleNotifyDrain() {
         mainHandler.post {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                kickNotifyApi33()
-                return@post
-            }
             synchronized(notifyChainLock) {
                 if (notifyDrainPosted) return@post
                 notifyDrainPosted = true
@@ -441,44 +423,11 @@ object BleTransportManager {
             @Suppress("DEPRECATION")
             if (gatt.writeDescriptor(desc)) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_FAILURE
         }
-        if (writeStatus != BluetoothGatt.GATT_SUCCESS) {
-            // #region agent log
-            DebugAgent.emit(
-                "H25",
-                "BleTransportManager:writeOutboundCccdNow",
-                "writeDescriptor not queued",
-                mapOf("status" to writeStatus, "cccdWritesIssued" to cccdWritesIssued),
-            )
-            // #endregion
-        }
     }
 
-    private fun kickNotifyApi33() {
-        if (notifyInFlight) return
-        val server = gattServer ?: return
-        val device = inboundDevice ?: return
-        val frame = notifyFrameQueue.poll() ?: return
-        notifyInFlight = true
-        val service = server.getService(SERVICE_UUID) ?: run {
-            notifyInFlight = false
-            kickNotifyApi33()
-            return
-        }
-        val characteristic = service.getCharacteristic(CHAR_UUID) ?: run {
-            notifyInFlight = false
-            kickNotifyApi33()
-            return
-        }
-        characteristic.value = frame
-        // #region agent log
-        DebugAgent.emit(
-            "H4",
-            "BleTransportManager:kickNotifyApi33",
-            "notify frame",
-            mapOf("frameBytes" to frame.size, "lastAttMtu" to lastAttMtu, "q" to notifyFrameQueue.size),
-        )
-        // #endregion
-        server.notifyCharacteristicChanged(device, characteristic, false)
+    private fun cancelOutboundWritePacing() {
+        mainHandler.removeCallbacks(outboundWriteDrainRunnable)
+        outboundWriteDrainPosted = false
     }
 
     private fun kickOutboundWrite() {
@@ -490,23 +439,9 @@ object BleTransportManager {
         val gatt = outboundGatt ?: return
         val ch = outboundChar ?: return
         if (outboundWriteInFlight) return
+        if (outboundWriteDrainPosted) return
         val next = outboundWriteQueue.pollFirst() ?: return
         outboundWriteInFlight = true
-        // #region agent log
-        DebugAgent.emit(
-            "H1",
-            "BleTransportManager:kickOutboundWrite",
-            "write attempt",
-            mapOf(
-                "frameBytes" to next.size,
-                "lastAttMtu" to lastAttMtu,
-                "maxPdu" to (lastAttMtu - 3),
-                "oversized" to (next.size > lastAttMtu - 3),
-                "effPayloadMax" to effectiveMaxFramePayload(),
-                "queue" to outboundWriteQueue.size,
-            ),
-        )
-        // #endregion
         val status = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             gatt.writeCharacteristic(ch, next, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
         } else {
@@ -524,19 +459,6 @@ object BleTransportManager {
                     TAG,
                     "gatt write busy (201); retry delayed ms=$GATT_WRITE_BUSY_RETRY_MS bytes=${next.size} q=${outboundWriteQueue.size}",
                 )
-                // #region agent log
-                DebugAgent.emit(
-                    "H22",
-                    "BleTransportManager:kickOutboundWrite",
-                    "writeCharacteristic busy; delayed retry",
-                    mapOf(
-                        "status" to status,
-                        "frameBytes" to next.size,
-                        "q" to outboundWriteQueue.size,
-                        "cccdReady" to outboundCccdReady,
-                    ),
-                )
-                // #endregion
                 outboundWriteQueue.offerFirst(next)
                 mainHandler.removeCallbacks(gattWriteBusyRetryRunnable)
                 mainHandler.postDelayed(gattWriteBusyRetryRunnable, GATT_WRITE_BUSY_RETRY_MS)
@@ -547,20 +469,6 @@ object BleTransportManager {
                 TAG,
                 "gatt write rejected status=$status bytes=${next.size} q=${outboundWriteQueue.size} streak=$consecutiveOutboundWriteFailures",
             )
-            // #region agent log
-            DebugAgent.emit(
-                "H20",
-                "BleTransportManager:kickOutboundWrite",
-                "writeCharacteristic not accepted; re-queue+retry",
-                mapOf(
-                    "status" to status,
-                    "frameBytes" to next.size,
-                    "streak" to consecutiveOutboundWriteFailures,
-                    "q" to outboundWriteQueue.size,
-                    "cccdReady" to outboundCccdReady,
-                ),
-            )
-            // #endregion
             if (consecutiveOutboundWriteFailures >= 64) {
                 Log.e(TAG, "gatt write abandoning outbound queue after repeated failures")
                 outboundWriteQueue.clear()
@@ -762,6 +670,7 @@ object BleTransportManager {
                 scanActive = false
                 mainHandler.removeCallbacks(gattWriteBusyRetryRunnable)
                 mainHandler.removeCallbacks(cccdRetryRunnable)
+                cancelOutboundWritePacing()
                 cccdWritesIssued = 0
                 outboundWriteQueue.clear()
                 outboundWriteInFlight = false
@@ -788,6 +697,7 @@ object BleTransportManager {
                 pendingOutboundServiceDiscover = false
                 mainHandler.removeCallbacks(gattWriteBusyRetryRunnable)
                 mainHandler.removeCallbacks(cccdRetryRunnable)
+                cancelOutboundWritePacing()
                 cccdWritesIssued = 0
                 val hasActiveLink = peers.isNotEmpty() || outboundGatt != null || inboundDevice != null
                 if (!hasActiveLink) {
@@ -801,19 +711,6 @@ object BleTransportManager {
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             Log.i(TAG, "services discovered status=$status")
-            // #region agent log
-            DebugAgent.emit(
-                "H1",
-                "BleTransportManager:onServicesDiscovered",
-                "services",
-                mapOf(
-                    "status" to status,
-                    "lastAttMtu" to lastAttMtu,
-                    "effPayloadMax" to effectiveMaxFramePayload(),
-                    "pendingWrites" to outboundWriteQueue.size,
-                ),
-            )
-            // #endregion
             if (status != BluetoothGatt.GATT_SUCCESS && servicesDiscoverRetries < 1) {
                 servicesDiscoverRetries++
                 Log.w(TAG, "services discovery failed; retrying once")
@@ -853,27 +750,11 @@ object BleTransportManager {
                 outboundCccdReady = true
                 cccdWritesIssued = 0
                 mainHandler.removeCallbacks(cccdRetryRunnable)
-                // #region agent log
-                DebugAgent.emit(
-                    "H21",
-                    "BleTransportManager:onDescriptorWrite",
-                    "cccd success; allow outbound writes",
-                    mapOf("status" to status, "writeQ" to outboundWriteQueue.size),
-                )
-                // #endregion
                 kickOutboundWrite()
                 return
             }
             Log.w(TAG, "cccd write failed status=$status issued=$cccdWritesIssued/$CCCD_MAX_ATTEMPTS (not enabling outbound writes)")
             outboundCccdReady = false
-            // #region agent log
-            DebugAgent.emit(
-                "H23",
-                "BleTransportManager:onDescriptorWrite",
-                "cccd failed",
-                mapOf("status" to status, "cccdWritesIssued" to cccdWritesIssued, "writeQ" to outboundWriteQueue.size),
-            )
-            // #endregion
             if (cccdWritesIssued < CCCD_MAX_ATTEMPTS && outboundGatt != null && outboundChar != null) {
                 cccdWritesIssued++
                 mainHandler.removeCallbacks(cccdRetryRunnable)
@@ -889,45 +770,35 @@ object BleTransportManager {
         }
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-            outboundWriteInFlight = false
-            if (status == BluetoothGatt.GATT_SUCCESS) consecutiveOutboundWriteFailures = 0
-            Log.d(TAG, "gatt onCharacteristicWrite status=$status q=${outboundWriteQueue.size}")
-            // #region agent log
-            DebugAgent.emit(
-                "H2",
-                "BleTransportManager:onCharacteristicWrite",
-                "write cb",
-                mapOf("status" to status, "q" to outboundWriteQueue.size, "lastAttMtu" to lastAttMtu),
-            )
-            // #endregion
-            kickOutboundWrite()
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                consecutiveOutboundWriteFailures = 0
+                Log.d(TAG, "gatt onCharacteristicWrite status=$status q=${outboundWriteQueue.size}")
+                if (outboundWriteQueue.isNotEmpty()) {
+                    mainHandler.removeCallbacks(outboundWriteDrainRunnable)
+                    outboundWriteDrainPosted = true
+                    outboundWriteInFlight = false
+                    mainHandler.postDelayed(outboundWriteDrainRunnable, WRITE_PACE_MS)
+                } else {
+                    outboundWriteInFlight = false
+                    cancelOutboundWritePacing()
+                }
+            } else {
+                cancelOutboundWritePacing()
+                outboundWriteInFlight = false
+                Log.d(TAG, "gatt onCharacteristicWrite status=$status q=${outboundWriteQueue.size}")
+                kickOutboundWrite()
+            }
         }
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
             Log.i(TAG, "mtu changed mtu=$mtu status=$status")
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 lastAttMtu = mtu
-                // #region agent log
-                DebugAgent.emit(
-                    "H1",
-                    "BleTransportManager:onMtuChanged",
-                    "mtu ok",
-                    mapOf("mtu" to mtu, "effPayloadMax" to effectiveMaxFramePayload(), "cccdReady" to outboundCccdReady),
-                )
-                // #endregion
                 if (outboundCccdReady) kickOutboundWrite()
             }
             if (outboundGatt === gatt && pendingOutboundServiceDiscover) {
                 pendingOutboundServiceDiscover = false
                 servicesDiscoverRetries = 0
-                // #region agent log
-                DebugAgent.emit(
-                    "H24",
-                    "BleTransportManager:onMtuChanged",
-                    "chained discoverServices after mtu",
-                    mapOf("mtuStatus" to status, "mtu" to mtu, "pendingWasTrue" to true),
-                )
-                // #endregion
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && appContext?.let { hasBlePermissions(it) } != true) return
                 gatt.discoverServices()
             }
@@ -935,6 +806,9 @@ object BleTransportManager {
 
         @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                return
+            }
             val peerId = peerIdFromAddress(gatt.device.address ?: "")
             onBleFrame(peerId, characteristic.value ?: ByteArray(0))
         }
@@ -1020,37 +894,11 @@ object BleTransportManager {
             if (responseNeeded) {
                 gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
             }
-            // #region agent log
-            DebugAgent.emit(
-                "H26",
-                "BleTransportManager:onDescriptorWriteRequest",
-                "cccd enable ack from server",
-                mapOf(
-                    "valueLen" to value.size,
-                    "offset" to offset,
-                    "responseNeeded" to responseNeeded,
-                    "preparedWrite" to preparedWrite,
-                ),
-            )
-            // #endregion
         }
 
         override fun onNotificationSent(device: BluetoothDevice, status: Int) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-            mainHandler.post {
-                notifyInFlight = false
-                // #region agent log
-                DebugAgent.emit(
-                    "H4",
-                    "BleTransportManager:onNotificationSent",
-                    "notify cb",
-                    mapOf("status" to status, "q" to notifyFrameQueue.size),
-                )
-                // #endregion
-                if (status != BluetoothGatt.GATT_SUCCESS) {
-                    Log.w(TAG, "notification send failed status=$status")
-                }
-                kickNotifyApi33()
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                Log.w(TAG, "notification send failed status=$status")
             }
         }
     }

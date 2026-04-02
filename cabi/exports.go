@@ -417,10 +417,6 @@ func ml_request_file(handle C.uintptr_t, fileHash *C.uint8_t, fileHashLen C.int3
 		if id := pickFallbackPeerIDLocked(node); id != 0 {
 			node.ActivePeer = id
 			peerID = id
-			// #region agent log
-			n := len(node.PeerTransports)
-			fmt.Printf("[agent][H16] request pickFallback peerID=%d transports=%d\n", peerID, n)
-			// #endregion
 		}
 	}
 	node.mu.Unlock()
@@ -499,16 +495,9 @@ func ml_request_file_with_chunk_count(handle C.uintptr_t, fileHash *C.uint8_t, f
 		if id := pickFallbackPeerIDLocked(node); id != 0 {
 			node.ActivePeer = id
 			peerID = id
-			// #region agent log
-			n := len(node.PeerTransports)
-			fmt.Printf("[agent][H16] request2 pickFallback peerID=%d transports=%d\n", peerID, n)
-			// #endregion
 		}
 	}
 	node.mu.Unlock()
-	// #region agent log
-	fmt.Printf("[agent][H8] request2 activePeer=%d hash=%x chunkCount=%d\n", peerID, hash, int32(chunkCount))
-	// #endregion
 	if peerID == 0 {
 		peers, pErr := node.Store.GetAllPeers(1)
 		if pErr != nil || len(peers) == 0 {
@@ -516,9 +505,6 @@ func ml_request_file_with_chunk_count(handle C.uintptr_t, fileHash *C.uint8_t, f
 			return makeResult(nil, fmt.Errorf("no active peer available"))
 		}
 		peerID = uint64ToPeerID(peers[0].GetLastSeen())
-		// #region agent log
-		fmt.Printf("[agent][H8] request2 fallbackPeerFromStore=%d lastSeen=%d\n", peerID, peers[0].GetLastSeen())
-		// #endregion
 	}
 	if err := startSession(node, peerID, req, transfer.DirectionOutbound); err != nil {
 		fmt.Printf("[cabi][request2] startSession failed peerID=%d err=%v\n", peerID, err)
@@ -575,9 +561,6 @@ func ml_on_peer_connected(handle C.uintptr_t, peerID C.uintptr_t) {
 				merge = append(merge, t)
 			}
 		}
-		// #region agent log
-		fmt.Printf("[agent][H18] peer_connected merge nOther=%d canonical=%d (last=%d)\n", len(merge), canID, pid)
-		// #endregion
 	}
 	node.mu.Unlock()
 	for _, t := range merge {
@@ -621,10 +604,6 @@ func ml_on_peer_disconnected(handle C.uintptr_t, peerID C.uintptr_t) {
 	if err != nil {
 		return
 	}
-	// #region agent log
-	fmt.Printf("[agent][H9] on_peer_disconnected peerID=%d activeBefore=%d\n", uintptr(peerID), node.ActivePeer)
-	// #endregion
-
 	delete(node.SessionKeys, uintptr(peerID))
 	delete(node.SharedSecrets, uintptr(peerID))
 	dropped := uintptr(peerID)
@@ -645,9 +624,6 @@ func ml_on_peer_disconnected(handle C.uintptr_t, peerID C.uintptr_t) {
 	}
 	if survT != nil && node.ActivePeer == 0 {
 		node.ActivePeer = survID
-		// #region agent log
-		fmt.Printf("[agent][H16] on_peer_disconnected rehomed activePeer=%d dropped=%d mergeOthers=%d\n", survID, dropped, len(mergeOthers))
-		// #endregion
 	}
 	node.mu.Unlock()
 
@@ -730,7 +706,9 @@ func ml_on_data_received(handle C.uintptr_t, peerID C.uintptr_t, data *C.uint8_t
 	case *pb.Envelope_TransferRequest:
 		if payload.TransferRequest != nil {
 			_ = node.Store.InsertRequest(payload.TransferRequest)
-			_ = startSession(node, uintptr(peerID), payload.TransferRequest, transfer.DirectionInbound)
+			if err := startSession(node, uintptr(peerID), payload.TransferRequest, transfer.DirectionInbound); err != nil {
+				fmt.Printf("[cabi] startSession inbound failed peer=%d hash=%x err=%v\n", uintptr(peerID), payload.TransferRequest.GetFileHash(), err)
+			}
 		}
 	case *pb.Envelope_ChunkBatch:
 		// Chunk persistence is delegated to native chunk storage callbacks.

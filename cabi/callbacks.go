@@ -165,7 +165,14 @@ func (nc *NativeCallbacks) ReadChunk(fileHash []byte, chunkIndex uint32, bufferS
 		(*C.uint8_t)(unsafe.Pointer(&dataOut[0])),
 		C.int32_t(bufferSize),
 	)
-	return dataOut, int32(result)
+	rc := int32(result)
+	if rc < 0 {
+		return nil, -rc
+	}
+	if rc == 0 {
+		return nil, ML_ERR_NOT_FOUND
+	}
+	return dataOut[:rc], ML_OK
 }
 
 func (nc *NativeCallbacks) HasChunk(fileHash []byte, chunkIndex uint32) bool {

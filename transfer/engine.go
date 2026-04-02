@@ -139,7 +139,7 @@ func isValidTransition(current TransferState, next TransferState) bool {
 	case StateVerifying:
 		return next == StateTransferring || next == StateRejected || next == StateFailed
 	case StateTransferring:
-		return next == StateTransferring || next == StateCoSigning || next == StateFailed
+		return next == StateTransferring || next == StateCoSigning || next == StateComplete || next == StateFailed
 	case StateCoSigning:
 		return next == StateGossiping || next == StateFailed
 	case StateGossiping:
@@ -159,9 +159,24 @@ func (s *TransferSession) RunSession(ctx context.Context) error {
 
 	defer cancel()
 
-	if err := s.TransitionTo(StateHandshake); err != nil {
-		s.setErr(err)
-		return err
+	if s.pendingRequest != nil {
+		if err := s.TransitionTo(StateHandshake); err != nil {
+			s.setErr(err)
+			return err
+		}
+		if err := s.TransitionTo(StateVerifying); err != nil {
+			s.setErr(err)
+			return err
+		}
+		if err := s.TransitionTo(StateTransferring); err != nil {
+			s.setErr(err)
+			return err
+		}
+	} else {
+		if err := s.TransitionTo(StateHandshake); err != nil {
+			s.setErr(err)
+			return err
+		}
 	}
 
 	for {
@@ -344,12 +359,12 @@ func (s *TransferSession) handleTransferring(_ context.Context) (TransferState, 
 				}
 			}
 		}
-		return StateCoSigning, nil
+		return StateComplete, nil
 	}
 
 	// Outbound: requester — receive chunk data from peer before co-signing.
 	if len(missing) == 0 {
-		return StateCoSigning, nil
+		return StateComplete, nil
 	}
 
 	if !s.outboundChunkRequestSent {
@@ -370,9 +385,6 @@ func (s *TransferSession) handleTransferring(_ context.Context) (TransferState, 
 			}
 		}
 		s.outboundChunkRequestSent = true
-		// #region agent log
-		fmt.Printf("[agent][H15] handleTransferring outbound request wire sent wantChunks=%d\n", len(s.pendingRequest.ChunkIndices))
-		// #endregion
 		return StateTransferring, nil
 	}
 
@@ -383,8 +395,6 @@ func (s *TransferSession) handleTransferring(_ context.Context) (TransferState, 
 			return StateFailed, fmt.Errorf("resume chunk check failed: %w", err)
 		}
 		if len(missing) == 0 {
-			// If the native layer persisted chunks before the batch was dequeued, drain queued ChunkBatches
-			// so handleCoSigning's Recv() sees ShareRecord, not a stale ChunkBatch.
 			for {
 				env, ok := s.transport.TryRecv()
 				if !ok {
@@ -404,7 +414,7 @@ func (s *TransferSession) handleTransferring(_ context.Context) (TransferState, 
 					break
 				}
 			}
-			return StateCoSigning, nil
+			return StateComplete, nil
 		}
 		if s.transport == nil {
 			return StateFailed, fmt.Errorf("transfer requires transport while waiting for chunks")

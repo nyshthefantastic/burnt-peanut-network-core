@@ -182,21 +182,18 @@ int32_t cb_write_chunk(const uint8_t* file_hash, int32_t fh_len, uint32_t chunk_
 
 int32_t cb_read_chunk(const uint8_t* file_hash, int32_t fh_len, uint32_t chunk_index, uint8_t* data_out, int32_t data_out_len) {
     JNIEnv* env = env_or_null();
-    if (!env || !g_hooks_cls || !g_onReadChunk || !data_out) return ML_ERR_INTERNAL;
+    if (!env || !g_hooks_cls || !g_onReadChunk || !data_out) return -ML_ERR_INTERNAL;
     jbyteArray hash = to_jbyte_array(env, file_hash, fh_len);
-    if (!hash && fh_len > 0) return ML_ERR_INTERNAL;
+    if (!hash && fh_len > 0) return -ML_ERR_INTERNAL;
     auto out = static_cast<jbyteArray>(env->CallStaticObjectMethod(g_hooks_cls, g_onReadChunk, hash, static_cast<jint>(chunk_index)));
     if (hash) env->DeleteLocalRef(hash);
-    if (clear_jni_exception(env, "cb_read_chunk")) return ML_ERR_INTERNAL;
-    if (!out) return ML_ERR_NOT_FOUND;
+    if (clear_jni_exception(env, "cb_read_chunk")) return -ML_ERR_INTERNAL;
+    if (!out) return -ML_ERR_NOT_FOUND;
     jsize n = env->GetArrayLength(out);
     jsize copy_n = std::min<jsize>(n, data_out_len);
     env->GetByteArrayRegion(out, 0, copy_n, reinterpret_cast<jbyte*>(data_out));
-    if (copy_n < data_out_len) {
-        std::memset(data_out + copy_n, 0, static_cast<size_t>(data_out_len - copy_n));
-    }
     env->DeleteLocalRef(out);
-    return ML_OK;
+    return static_cast<int32_t>(copy_n);
 }
 
 bool cb_has_chunk(const uint8_t* file_hash, int32_t fh_len, uint32_t chunk_index) {
