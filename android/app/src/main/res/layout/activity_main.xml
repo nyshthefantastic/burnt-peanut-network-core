@@ -83,6 +83,14 @@
             android:inputType="textNoSuggestions|textVisiblePassword"
             android:minLines="2" />
 
+        <EditText
+            android:id="@+id/input_chunk_count"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/chunk_count_hint"
+            android:inputType="number" />
+
         <Button
             android:id="@+id/btn_request_file"
             android:layout_width="match_parent"

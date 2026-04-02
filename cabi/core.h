@@ -115,6 +115,7 @@ void    ml_node_destroy(MLNode node);
 
 /* User Actions */
 MLResult ml_request_file(MLNode node, const uint8_t* file_hash, int32_t len);
+MLResult ml_request_file_with_chunk_count(MLNode node, const uint8_t* file_hash, int32_t len, int32_t chunk_count);
 MLResult ml_get_balance(MLNode node);
 MLResult ml_get_chain_summary(MLNode node);
 int32_t  ml_set_service_policy(MLNode node, int32_t policy);

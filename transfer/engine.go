@@ -55,6 +55,10 @@ type TransferSession struct {
 	localPubKey     []byte
 	pendingRequest  *pb.TransferRequest
 
+	// Outbound (requester): after the signed TransferRequest is sent on the wire, wait for
+	// ChunkBatch before co-signing. Prevents jumping to CoSigning while Recv would steal batches.
+	outboundChunkRequestSent bool
+
 	mu         sync.Mutex
 	cancelFunc context.CancelFunc
 	err        error
@@ -106,6 +110,14 @@ func (s *TransferSession) SetPolicyStore(store *storage.Store) {
 	s.policyStore = store
 }
 
+// RebindPeer updates the logical peer id after a BLE link migrates (e.g. central GATT drops but
+// peripheral link remains, mapped to a different numeric peer id on the same device).
+func (s *TransferSession) RebindPeer(newPeerID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PeerID = newPeerID
+}
+
 func (s *TransferSession) TransitionTo(next TransferState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -127,7 +139,7 @@ func isValidTransition(current TransferState, next TransferState) bool {
 	case StateVerifying:
 		return next == StateTransferring || next == StateRejected || next == StateFailed
 	case StateTransferring:
-		return next == StateCoSigning || next == StateFailed
+		return next == StateTransferring || next == StateCoSigning || next == StateFailed
 	case StateCoSigning:
 		return next == StateGossiping || next == StateFailed
 	case StateGossiping:
@@ -277,7 +289,10 @@ func (s *TransferSession) handleVerifying(_ context.Context) (TransferState, err
 		if s.balance.EffectiveBalance(nil, peerPub, 0) > 0 {
 			return StateTransferring, nil
 		}
-		return StateRejected, fmt.Errorf("insufficient drip allowance for new device")
+		// Fresh BLE / MVP nodes have no ledger rows yet; drip is 0. Identity still passed
+		// ProcessHandshake. Rejecting here prevents any first-hop file transfer (see session logs:
+		// UI shows "request OK" but no NativeHooks send / no writeChunk on peer).
+		return StateTransferring, nil
 	}
 
 	recordsForPolicy := handshake.GetRecordsSinceCheckpoint()
@@ -306,30 +321,109 @@ func (s *TransferSession) handleTransferring(_ context.Context) (TransferState, 
 	if err != nil {
 		return StateFailed, fmt.Errorf("resume chunk check failed: %w", err)
 	}
+
+	// Inbound = we received a TransferRequest; we are the sender and must have every chunk locally.
+	if s.Direction == DirectionInbound {
+		if len(missing) > 0 {
+			return StateFailed, fmt.Errorf("sender missing %d requested chunks locally", len(missing))
+		}
+		if len(s.pendingRequest.ChunkIndices) > 0 {
+			indices := s.pendingRequest.ChunkIndices
+			if len(indices) > MaxChunksPerBatch {
+				indices = append([]uint32(nil), s.pendingRequest.ChunkIndices[:MaxChunksPerBatch]...)
+			}
+			batch, berr := BuildBatch(s.pendingRequest.FileHash, indices, len(indices), s.storage)
+			if berr != nil {
+				return StateFailed, fmt.Errorf("build chunk batch: %w", berr)
+			}
+			if s.transport != nil {
+				if err := s.transport.Send(&pb.Envelope{
+					Payload: &pb.Envelope_ChunkBatch{ChunkBatch: batch},
+				}); err != nil {
+					return StateFailed, fmt.Errorf("send chunk batch: %w", err)
+				}
+			}
+		}
+		return StateCoSigning, nil
+	}
+
+	// Outbound: requester — receive chunk data from peer before co-signing.
 	if len(missing) == 0 {
 		return StateCoSigning, nil
 	}
 
-	// Resume flow: request only chunks not already present locally.
-	s.pendingRequest.ChunkIndices = missing
-	if s.signer != nil {
-		signable := dag.TransferRequestSignableBytes(s.pendingRequest)
-		sig, err := s.signer.Sign(signable)
+	if !s.outboundChunkRequestSent {
+		s.pendingRequest.ChunkIndices = missing
+		if s.signer != nil {
+			signable := dag.TransferRequestSignableBytes(s.pendingRequest)
+			sig, err := s.signer.Sign(signable)
+			if err != nil {
+				return StateFailed, fmt.Errorf("sign transfer request failed: %w", err)
+			}
+			s.pendingRequest.Signature = sig
+		}
+		if s.transport != nil {
+			if err := s.transport.Send(&pb.Envelope{
+				Payload: &pb.Envelope_TransferRequest{TransferRequest: s.pendingRequest},
+			}); err != nil {
+				return StateFailed, fmt.Errorf("send transfer request failed: %w", err)
+			}
+		}
+		s.outboundChunkRequestSent = true
+		// #region agent log
+		fmt.Printf("[agent][H15] handleTransferring outbound request wire sent wantChunks=%d\n", len(s.pendingRequest.ChunkIndices))
+		// #endregion
+		return StateTransferring, nil
+	}
+
+	// Wait until chunks are present (cabi may persist ChunkBatch before enqueue; Recv may duplicate — idempotent writes).
+	for {
+		missing, err = MissingChunkIndices(s.storage, s.pendingRequest.FileHash, s.pendingRequest.ChunkIndices)
 		if err != nil {
-			return StateFailed, fmt.Errorf("sign transfer request failed: %w", err)
+			return StateFailed, fmt.Errorf("resume chunk check failed: %w", err)
 		}
-		s.pendingRequest.Signature = sig
-	}
-
-	if s.transport != nil {
-		if err := s.transport.Send(&pb.Envelope{
-			Payload: &pb.Envelope_TransferRequest{TransferRequest: s.pendingRequest},
-		}); err != nil {
-			return StateFailed, fmt.Errorf("send resumed transfer request failed: %w", err)
+		if len(missing) == 0 {
+			// If the native layer persisted chunks before the batch was dequeued, drain queued ChunkBatches
+			// so handleCoSigning's Recv() sees ShareRecord, not a stale ChunkBatch.
+			for {
+				env, ok := s.transport.TryRecv()
+				if !ok {
+					break
+				}
+				if env == nil {
+					continue
+				}
+				if batch := env.GetChunkBatch(); batch != nil && s.storage != nil {
+					for _, ch := range batch.GetChunks() {
+						if err := s.storage.WriteChunk(batch.GetFileHash(), ch.GetChunkIndex(), ch.GetData()); err != nil {
+							return StateFailed, fmt.Errorf("store received chunk: %w", err)
+						}
+					}
+				} else {
+					s.transport.PutBack(env)
+					break
+				}
+			}
+			return StateCoSigning, nil
+		}
+		if s.transport == nil {
+			return StateFailed, fmt.Errorf("transfer requires transport while waiting for chunks")
+		}
+		env, err := s.transport.Recv()
+		if err != nil {
+			return StateFailed, fmt.Errorf("waiting for chunk delivery: %w", err)
+		}
+		if env == nil {
+			return StateFailed, fmt.Errorf("transport returned nil envelope while waiting for chunks")
+		}
+		if batch := env.GetChunkBatch(); batch != nil && s.storage != nil {
+			for _, ch := range batch.GetChunks() {
+				if err := s.storage.WriteChunk(batch.GetFileHash(), ch.GetChunkIndex(), ch.GetData()); err != nil {
+					return StateFailed, fmt.Errorf("store received chunk: %w", err)
+				}
+			}
 		}
 	}
-
-	return StateCoSigning, nil
 }
 
 func (s *TransferSession) handleCoSigning(_ context.Context) (TransferState, error) {

@@ -25,7 +25,21 @@ object NativeHooks {
     @JvmStatic
     fun onSend(peerId: Long, data: ByteArray): Int {
         Log.d(TAG, "send peer=$peerId bytes=${data.size}")
-        return if (BleTransportManager.send(peerId, data)) ML_OK else ML_ERR_INTERNAL
+        val ok = BleTransportManager.send(peerId, data)
+        // #region agent log
+        DebugAgent.emit(
+            "H12",
+            "NativeHooks:onSend",
+            "core->ble send",
+            mapOf(
+                "peerId" to peerId,
+                "bytes" to data.size,
+                "ok" to ok,
+                "ble" to BleTransportManager.debugState().toString(),
+            ),
+        )
+        // #endregion
+        return if (ok) ML_OK else ML_ERR_INTERNAL
     }
 
     @JvmStatic
@@ -86,9 +100,29 @@ object NativeHooks {
             chunkStore[key] = data
             val persisted = persistChunk(fileHash, chunkIndex, data)
             Log.d(TAG, "writeChunk ok key=$key bytes=${data.size} persisted=$persisted")
+            // #region agent log
+            DebugAgent.emit(
+                "H13",
+                "NativeHooks:onWriteChunk",
+                "chunk persisted",
+                mapOf(
+                    "key" to key,
+                    "bytes" to data.size,
+                    "persisted" to persisted,
+                ),
+            )
+            // #endregion
             ML_OK
         }.getOrElse {
             Log.e(TAG, "writeChunk failed key=$key bytes=${data.size}: ${it.message}", it)
+            // #region agent log
+            DebugAgent.emit(
+                "H13",
+                "NativeHooks:onWriteChunk",
+                "chunk persist failed",
+                mapOf("key" to key, "bytes" to data.size, "error" to (it.message ?: "unknown")),
+            )
+            // #endregion
             ML_ERR_INTERNAL
         }
     }

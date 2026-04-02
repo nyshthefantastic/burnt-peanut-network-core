@@ -471,6 +471,32 @@ Java_com_burntpeanut_core_CoreBridge_nativeShareFile(JNIEnv* env, jclass /*clazz
     return rc;
 }
 
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_burntpeanut_core_CoreBridge_nativeRequestFileWithChunkCount(JNIEnv* env, jclass /*clazz*/, jlong handle, jbyteArray fileHash, jint chunkCount) {
+    if (handle == 0 || !fileHash) return nullptr;
+    if (chunkCount <= 0) return nullptr;
+    const jsize len = env->GetArrayLength(fileHash);
+    if (len <= 0) return nullptr;
+    std::vector<uint8_t> hash(static_cast<size_t>(len));
+    env->GetByteArrayRegion(fileHash, 0, len, reinterpret_cast<jbyte*>(hash.data()));
+    MLResult r = ml_request_file_with_chunk_count(
+        static_cast<MLNode>(handle),
+        hash.data(),
+        static_cast<int32_t>(len),
+        static_cast<int32_t>(chunkCount));
+    __android_log_print(ANDROID_LOG_INFO, TAG, "nativeRequestFileWithChunkCount rc=%d len=%d chunks=%d", static_cast<int>(r.error_code), static_cast<int>(r.len), static_cast<int>(chunkCount));
+    if (r.error_code != ML_OK || r.data == nullptr || r.len <= 0) {
+        if (r.data != nullptr) {
+            ml_free(const_cast<uint8_t*>(r.data));
+        }
+        return nullptr;
+    }
+    jbyteArray out = env->NewByteArray(r.len);
+    env->SetByteArrayRegion(out, 0, r.len, reinterpret_cast<const jbyte*>(r.data));
+    ml_free(const_cast<uint8_t*>(r.data));
+    return out;
+}
+
 jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     g_vm = vm;
     JNIEnv* env = nullptr;

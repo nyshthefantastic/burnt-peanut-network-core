@@ -14,13 +14,19 @@ object CoreBridge {
     var appFilesDir: String = ""
         private set
 
+    /** App-specific external dir (optional); used for debug NDJSON `adb pull`. */
+    @Volatile
+    var appExternalFilesDir: String = ""
+        private set
+
     init {
         System.loadLibrary("core")
         System.loadLibrary("mljni")
     }
 
-    fun initRuntime(filesDir: File) {
+    fun initRuntime(filesDir: File, externalFilesDir: File? = null) {
         appFilesDir = filesDir.absolutePath
+        appExternalFilesDir = externalFilesDir?.absolutePath?.takeIf { it.isNotEmpty() } ?: ""
     }
 
     fun createNode(dbPath: String): Long {
@@ -56,6 +62,9 @@ object CoreBridge {
 
     @JvmStatic
     external fun nativeRequestFile(handle: Long, fileHash: ByteArray): ByteArray?
+
+    @JvmStatic
+    external fun nativeRequestFileWithChunkCount(handle: Long, fileHash: ByteArray, chunkCount: Int): ByteArray?
 
     @JvmStatic
     external fun nativeRequestFileCode(handle: Long, fileHash: ByteArray): Int

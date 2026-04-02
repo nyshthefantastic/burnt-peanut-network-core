@@ -19,10 +19,20 @@ import (
 )
 
 type testTransport struct {
-	peerID string
-	recv   []*pb.Envelope
-	sent   []*pb.Envelope
-	closed bool
+	peerID  string
+	recv    []*pb.Envelope
+	preRecv []*pb.Envelope
+	sent    []*pb.Envelope
+	closed  bool
+}
+
+func (t *testTransport) takePre() (*pb.Envelope, bool) {
+	if len(t.preRecv) == 0 {
+		return nil, false
+	}
+	env := t.preRecv[0]
+	t.preRecv = t.preRecv[1:]
+	return env, true
 }
 
 func (t *testTransport) Send(env *pb.Envelope) error {
@@ -31,6 +41,9 @@ func (t *testTransport) Send(env *pb.Envelope) error {
 }
 
 func (t *testTransport) Recv() (*pb.Envelope, error) {
+	if env, ok := t.takePre(); ok {
+		return env, nil
+	}
 	if len(t.recv) == 0 {
 		time.Sleep(2 * time.Millisecond)
 		return nil, nil
@@ -38,6 +51,25 @@ func (t *testTransport) Recv() (*pb.Envelope, error) {
 	env := t.recv[0]
 	t.recv = t.recv[1:]
 	return env, nil
+}
+
+func (t *testTransport) TryRecv() (*pb.Envelope, bool) {
+	if env, ok := t.takePre(); ok {
+		return env, true
+	}
+	if len(t.recv) == 0 {
+		return nil, false
+	}
+	env := t.recv[0]
+	t.recv = t.recv[1:]
+	return env, true
+}
+
+func (t *testTransport) PutBack(env *pb.Envelope) {
+	if env == nil {
+		return
+	}
+	t.preRecv = append([]*pb.Envelope{env}, t.preRecv...)
 }
 
 func (t *testTransport) PeerID() string { return t.peerID }
@@ -168,6 +200,17 @@ func TestEngC_TransferResumeCoSign_E2E(t *testing.T) {
 						SessionId:      []byte("s1"),
 						IdentityPubkey: peerPub,
 						Policy:         pb.ServicePolicy_POLICY_LIGHT,
+					},
+				},
+			},
+			{
+				Payload: &pb.Envelope_ChunkBatch{
+					ChunkBatch: &pb.ChunkBatch{
+						FileHash: fileHash,
+						Chunks: []*pb.ChunkData{
+							{ChunkIndex: 1, Data: []byte("chunk-1")},
+							{ChunkIndex: 2, Data: []byte("chunk-2")},
+						},
 					},
 				},
 			},

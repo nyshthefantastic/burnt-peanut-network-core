@@ -10,9 +10,19 @@ import (
 )
 
 type mockTransport struct {
-	peerID string
-	recv   []*pb.Envelope
-	closed bool
+	peerID  string
+	recv    []*pb.Envelope
+	preRecv []*pb.Envelope
+	closed  bool
+}
+
+func (m *mockTransport) takePre() (*pb.Envelope, bool) {
+	if len(m.preRecv) == 0 {
+		return nil, false
+	}
+	env := m.preRecv[0]
+	m.preRecv = m.preRecv[1:]
+	return env, true
 }
 
 func (m *mockTransport) Send(env *pb.Envelope) error { return nil }
@@ -23,6 +33,9 @@ func (m *mockTransport) Close() error {
 }
 
 func (m *mockTransport) Recv() (*pb.Envelope, error) {
+	if env, ok := m.takePre(); ok {
+		return env, nil
+	}
 	if len(m.recv) == 0 {
 		time.Sleep(2 * time.Millisecond)
 		return nil, nil
@@ -30,6 +43,25 @@ func (m *mockTransport) Recv() (*pb.Envelope, error) {
 	env := m.recv[0]
 	m.recv = m.recv[1:]
 	return env, nil
+}
+
+func (m *mockTransport) TryRecv() (*pb.Envelope, bool) {
+	if env, ok := m.takePre(); ok {
+		return env, true
+	}
+	if len(m.recv) == 0 {
+		return nil, false
+	}
+	env := m.recv[0]
+	m.recv = m.recv[1:]
+	return env, true
+}
+
+func (m *mockTransport) PutBack(env *pb.Envelope) {
+	if env == nil {
+		return
+	}
+	m.preRecv = append([]*pb.Envelope{env}, m.preRecv...)
 }
 
 func testStore(t *testing.T) *storage.Store {

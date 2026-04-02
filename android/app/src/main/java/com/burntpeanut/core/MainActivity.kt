@@ -52,12 +52,13 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        CoreBridge.initRuntime(filesDir)
+        CoreBridge.initRuntime(filesDir, getExternalFilesDir(null))
         ensureBlePermissions()
         BleTransportManager.start(this)
         val status = findViewById<TextView>(R.id.status)
         val logView = findViewById<TextView>(R.id.event_log)
         val inputHash = findViewById<EditText>(R.id.input_file_hash)
+        val inputChunkCount = findViewById<EditText>(R.id.input_chunk_count)
         val inputPeerAddress = findViewById<EditText>(R.id.input_peer_address)
         val peerStateView = findViewById<TextView>(R.id.peer_state)
         val peerListView = findViewById<TextView>(R.id.peer_list)
@@ -88,6 +89,7 @@ class MainActivity : AppCompatActivity() {
             if (nodeHandle == 0L) {
                 pushEvent(logView, status, "nativeCreateNode failed (handle 0)")
             } else {
+                BleTransportManager.rehydrateCorePeerLifecycle(nodeHandle)
                 pushEvent(logView, status, "Node created (handle=$nodeHandle)")
             }
         }
@@ -138,8 +140,11 @@ class MainActivity : AppCompatActivity() {
             }
             val hash = MessageDigest.getInstance("SHA-256").digest(payload)
             lastSharedHashHex = hash.joinToString("") { "%02x".format(it) }
+            val chunkSize = 64 * 1024
+            val chunkCount = (payload.size + chunkSize - 1) / chunkSize
             inputHash.setText(lastSharedHashHex)
-            pushEvent(logView, status, "Shared sample file. Hash=$lastSharedHashHex")
+            inputChunkCount.setText(chunkCount.toString())
+            pushEvent(logView, status, "Shared sample file. Hash=$lastSharedHashHex chunks=$chunkCount")
         }
 
         findViewById<Button>(R.id.btn_request_file).setOnClickListener {
@@ -157,11 +162,46 @@ class MainActivity : AppCompatActivity() {
                 pushEvent(logView, status, "Invalid hash hex")
                 return@setOnClickListener
             }
-            val response = CoreBridge.nativeRequestFile(nodeHandle, hashBytes)
+            val chunkCount = inputChunkCount.text.toString().trim().toIntOrNull()
+            // #region agent log
+            DebugAgent.emit(
+                "H10",
+                "MainActivity:btn_request_file:beforeNative",
+                "request click",
+                mapOf(
+                    "nodeHandle" to nodeHandle,
+                    "hashLen" to hashBytes.size,
+                    "chunkCount" to (chunkCount ?: -1),
+                    "ble" to BleTransportManager.debugState().toString(),
+                ),
+            )
+            // #endregion
+            val response = if (chunkCount != null && chunkCount > 0) {
+                CoreBridge.nativeRequestFileWithChunkCount(nodeHandle, hashBytes, chunkCount)
+            } else {
+                CoreBridge.nativeRequestFile(nodeHandle, hashBytes)
+            }
             if (response == null) {
                 val code = CoreBridge.nativeRequestFileCode(nodeHandle, hashBytes)
-                pushEvent(logView, status, "Request returned no payload (code=$code ${errorName(code)})")
+                // #region agent log
+                DebugAgent.emit(
+                    "H10",
+                    "MainActivity:btn_request_file:afterNative",
+                    "request null",
+                    mapOf("code" to code, "ble" to BleTransportManager.debugState().toString()),
+                )
+                // #endregion
+                val hint = if (code == 2) " (hint: enter sender chunk count)" else ""
+                pushEvent(logView, status, "Request returned no payload (code=$code ${errorName(code)})$hint")
             } else {
+                // #region agent log
+                DebugAgent.emit(
+                    "H10",
+                    "MainActivity:btn_request_file:afterNative",
+                    "request payload",
+                    mapOf("bytes" to response.size, "ble" to BleTransportManager.debugState().toString()),
+                )
+                // #endregion
                 pushEvent(logView, status, "Request returned ${response.size} bytes")
             }
         }
@@ -172,6 +212,19 @@ class MainActivity : AppCompatActivity() {
                 pushEvent(logView, status, "Enter/paste a file hash first")
                 return@setOnClickListener
             }
+            val chunkDir = File(filesDir, "chunks")
+            val normalized = hashHex.lowercase(Locale.US).filterNot { it.isWhitespace() }
+            val matching = chunkDir.listFiles()
+                ?.count { it.isFile && it.name.startsWith("$normalized:") && it.name.endsWith(".bin") }
+                ?: 0
+            // #region agent log
+            DebugAgent.emit(
+                "H14",
+                "MainActivity:btn_reconstruct_file:before",
+                "reconstruct click",
+                mapOf("hash" to normalized, "matchingChunks" to matching),
+            )
+            // #endregion
             val out = reconstructReceivedFile(hashHex)
             if (out == null) {
                 pushEvent(logView, status, "Reconstruct failed: no chunks found for hash")
@@ -218,6 +271,30 @@ class MainActivity : AppCompatActivity() {
         BleTransportManager.setPeerEventsListener(null)
         super.onDestroy()
         BleTransportManager.stop()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // #region agent log
+        DebugAgent.emit(
+            "H11",
+            "MainActivity:onStart",
+            "activity visible",
+            mapOf("nodeHandle" to nodeHandle, "ble" to BleTransportManager.debugState().toString()),
+        )
+        // #endregion
+    }
+
+    override fun onStop() {
+        // #region agent log
+        DebugAgent.emit(
+            "H11",
+            "MainActivity:onStop",
+            "activity backgrounded",
+            mapOf("nodeHandle" to nodeHandle, "ble" to BleTransportManager.debugState().toString()),
+        )
+        // #endregion
+        super.onStop()
     }
 
     private fun hexToBytes(hex: String): ByteArray? {

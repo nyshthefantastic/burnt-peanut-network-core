@@ -46,6 +46,28 @@ func TestEnsurePeerTransportReuse(t *testing.T) {
 	}
 }
 
+func TestLinkDelegateForwardsRecv(t *testing.T) {
+	cb := &NativeCallbacks{}
+	a := newCabiPeerTransport(10, cb)
+	b := newCabiPeerTransport(20, cb)
+	a.linkDelegate(b)
+	done := make(chan struct{})
+	go func() {
+		env, err := a.Recv()
+		if err != nil {
+			t.Errorf("recv: %v", err)
+			done <- struct{}{}
+			return
+		}
+		if env.GetHandshake() == nil {
+			t.Errorf("expected handshake envelope")
+		}
+		done <- struct{}{}
+	}()
+	b.enqueue(&pb.Envelope{Payload: &pb.Envelope_Handshake{Handshake: &pb.HandshakeMsg{}}})
+	<-done
+}
+
 func TestStartSessionAddsTransferSession(t *testing.T) {
 	node := testNodeContext(t)
 	req := &pb.TransferRequest{

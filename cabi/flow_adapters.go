@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/nyshthefantastic/burnt-peanut-network-core/crypto"
@@ -19,6 +20,11 @@ type cabiPeerTransport struct {
 	peerID    uintptr
 	callbacks *NativeCallbacks
 	incoming  chan *pb.Envelope
+	preMu     sync.Mutex
+	preRecv   []*pb.Envelope // FIFO pushed by PutBack, consumed before incoming
+	delegateMu     sync.Mutex
+	delegatePeer   *cabiPeerTransport // when set, Send/Recv forward to surviving link after BLE path change
+	incomingClosed bool
 }
 
 func newCabiPeerTransport(peerID uintptr, callbacks *NativeCallbacks) *cabiPeerTransport {
@@ -29,7 +35,78 @@ func newCabiPeerTransport(peerID uintptr, callbacks *NativeCallbacks) *cabiPeerT
 	}
 }
 
+// linkDelegate drains queued envelopes into surv, then forwards Send/Recv/enqueue to surv and closes
+// t.incoming so goroutines blocked on Recv continue on the survivor transport.
+func (t *cabiPeerTransport) linkDelegate(surv *cabiPeerTransport) {
+	if t == nil || surv == nil || t == surv {
+		return
+	}
+	t.delegateMu.Lock()
+	if t.incomingClosed {
+		t.delegateMu.Unlock()
+		return
+	}
+	t.preMu.Lock()
+	for _, env := range t.preRecv {
+		surv.enqueueLocked(env)
+	}
+	t.preRecv = nil
+	t.preMu.Unlock()
+	for {
+		select {
+		case env, ok := <-t.incoming:
+			if !ok {
+				t.delegatePeer = surv
+				t.incomingClosed = true
+				t.delegateMu.Unlock()
+				return
+			}
+			surv.enqueueLocked(env)
+		default:
+			t.delegatePeer = surv
+			t.incomingClosed = true
+			close(t.incoming)
+			t.delegateMu.Unlock()
+			// #region agent log
+			fmt.Printf("[agent][H17] linkDelegate droppedPeer=%d -> survivorPeer=%d\n", t.peerID, surv.peerID)
+			// #endregion
+			return
+		}
+	}
+}
+
+func (t *cabiPeerTransport) delegate() *cabiPeerTransport {
+	t.delegateMu.Lock()
+	defer t.delegateMu.Unlock()
+	return t.delegatePeer
+}
+
+// delegateRoot follows delegate links to the active transport. A mistaken cycle would recurse
+// until stack overflow when JNI calls stack with Send/Recv; guard with a seen set.
+func (t *cabiPeerTransport) delegateRoot() (*cabiPeerTransport, error) {
+	cur := t
+	seen := make(map[*cabiPeerTransport]struct{})
+	for {
+		if cur == nil {
+			return nil, fmt.Errorf("nil transport")
+		}
+		if _, dup := seen[cur]; dup {
+			return nil, fmt.Errorf("cabiPeerTransport: delegate cycle")
+		}
+		seen[cur] = struct{}{}
+		if d := cur.delegate(); d != nil {
+			cur = d
+			continue
+		}
+		return cur, nil
+	}
+}
+
 func (t *cabiPeerTransport) Send(env *pb.Envelope) error {
+	cur, err := t.delegateRoot()
+	if err != nil {
+		return err
+	}
 	if env == nil {
 		return fmt.Errorf("nil envelope")
 	}
@@ -37,18 +114,99 @@ func (t *cabiPeerTransport) Send(env *pb.Envelope) error {
 	if err != nil {
 		return err
 	}
-	if rc := t.callbacks.Send(t.peerID, data); rc != ML_OK {
+	// #region agent log
+	fmt.Printf("[agent][H7] cabiPeerTransport.Send peer=%d bytes=%d payload=%T\n", cur.peerID, len(data), env.Payload)
+	// #endregion
+	if rc := cur.callbacks.Send(cur.peerID, data); rc != ML_OK {
+		// #region agent log
+		fmt.Printf("[agent][H7] cabiPeerTransport.Send failed peer=%d rc=%d\n", cur.peerID, int(rc))
+		// #endregion
 		return codeToError(rc)
 	}
+	// #region agent log
+	fmt.Printf("[agent][H7] cabiPeerTransport.Send ok peer=%d bytes=%d\n", cur.peerID, len(data))
+	// #endregion
 	return nil
 }
 
-func (t *cabiPeerTransport) Recv() (*pb.Envelope, error) {
-	env, ok := <-t.incoming
-	if !ok {
-		return nil, fmt.Errorf("transport closed")
+func (t *cabiPeerTransport) takePreRecv() (*pb.Envelope, bool) {
+	t.preMu.Lock()
+	defer t.preMu.Unlock()
+	if len(t.preRecv) == 0 {
+		return nil, false
 	}
-	return env, nil
+	env := t.preRecv[0]
+	t.preRecv = t.preRecv[1:]
+	return env, true
+}
+
+func (t *cabiPeerTransport) Recv() (*pb.Envelope, error) {
+	cur := t
+	seen := make(map[*cabiPeerTransport]struct{})
+	for {
+		if cur == nil {
+			return nil, fmt.Errorf("nil transport")
+		}
+		if _, dup := seen[cur]; dup {
+			return nil, fmt.Errorf("cabiPeerTransport: delegate cycle in Recv")
+		}
+		seen[cur] = struct{}{}
+		if env, ok := cur.takePreRecv(); ok {
+			return env, nil
+		}
+		if d := cur.delegate(); d != nil {
+			cur = d
+			continue
+		}
+		env, ok := <-cur.incoming
+		if !ok {
+			return nil, fmt.Errorf("transport closed")
+		}
+		return env, nil
+	}
+}
+
+func (t *cabiPeerTransport) TryRecv() (*pb.Envelope, bool) {
+	cur := t
+	seen := make(map[*cabiPeerTransport]struct{})
+	for {
+		if cur == nil {
+			return nil, false
+		}
+		if _, dup := seen[cur]; dup {
+			return nil, false
+		}
+		seen[cur] = struct{}{}
+		if env, ok := cur.takePreRecv(); ok {
+			return env, true
+		}
+		if d := cur.delegate(); d != nil {
+			cur = d
+			continue
+		}
+		select {
+		case env, ok := <-cur.incoming:
+			if !ok {
+				return nil, false
+			}
+			return env, true
+		default:
+			return nil, false
+		}
+	}
+}
+
+func (t *cabiPeerTransport) PutBack(env *pb.Envelope) {
+	if env == nil {
+		return
+	}
+	cur, err := t.delegateRoot()
+	if err != nil {
+		return
+	}
+	cur.preMu.Lock()
+	defer cur.preMu.Unlock()
+	cur.preRecv = append([]*pb.Envelope{env}, cur.preRecv...)
 }
 
 func (t *cabiPeerTransport) PeerID() string {
@@ -63,11 +221,13 @@ func (t *cabiPeerTransport) Close() error {
 	return nil
 }
 
-func (t *cabiPeerTransport) enqueue(env *pb.Envelope) {
+func (t *cabiPeerTransport) enqueueLocked(env *pb.Envelope) {
+	if env == nil {
+		return
+	}
 	select {
 	case t.incoming <- env:
 	default:
-		// Drop oldest by draining one and retrying once.
 		select {
 		case <-t.incoming:
 		default:
@@ -77,6 +237,17 @@ func (t *cabiPeerTransport) enqueue(env *pb.Envelope) {
 		default:
 		}
 	}
+}
+
+func (t *cabiPeerTransport) enqueue(env *pb.Envelope) {
+	if env == nil {
+		return
+	}
+	cur, err := t.delegateRoot()
+	if err != nil {
+		return
+	}
+	cur.enqueueLocked(env)
 }
 
 type cabiChainAppender struct {
@@ -159,6 +330,9 @@ func startSession(node *NodeContext, peerID uintptr, req *pb.TransferRequest, di
 	sessionID := fmt.Sprintf("%d:%x", peerID, req.GetFileHash())
 	peerKey := fmt.Sprintf("%d", peerID)
 	s, ok := node.Transfer.Get(sessionID)
+	// #region agent log
+	fmt.Printf("[agent][H6] startSession peerID=%d dir=%s sessionID=%s existing=%v chunks=%d\n", peerID, direction, sessionID, ok, len(req.GetChunkIndices()))
+	// #endregion
 	if !ok {
 		s = transfer.NewSession(
 			peerKey,
@@ -173,6 +347,9 @@ func startSession(node *NodeContext, peerID uintptr, req *pb.TransferRequest, di
 		s.SetPolicyStore(node.Store)
 		s.SetFileStorage(cabiFileStorage{node: node})
 		s.SetLocalPubKey(node.Identity.Pubkey)
+		// Must set before RunSession: handleTransferring skips chunk work when pendingRequest is nil
+		// (race caused sender to jump to CoSigning without ChunkBatch — matches "no chunks" on receiver).
+		s.SetPendingRequest(req)
 		if err := node.Transfer.Add(s); err != nil {
 			return err
 		}
@@ -180,6 +357,7 @@ func startSession(node *NodeContext, peerID uintptr, req *pb.TransferRequest, di
 			_ = sess.RunSession(context.Background())
 			node.Transfer.RemoveCompleted()
 		}(s)
+		return nil
 	}
 	s.SetPendingRequest(req)
 	return nil

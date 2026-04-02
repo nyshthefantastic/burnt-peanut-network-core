@@ -407,6 +407,22 @@ func ml_request_file(handle C.uintptr_t, fileHash *C.uint8_t, fileHashLen C.int3
 
 	node.mu.Lock()
 	peerID := node.ActivePeer
+	if peerID != 0 {
+		if _, ok := node.PeerTransports[peerID]; !ok {
+			peerID = 0
+			node.ActivePeer = 0
+		}
+	}
+	if peerID == 0 {
+		if id := pickFallbackPeerIDLocked(node); id != 0 {
+			node.ActivePeer = id
+			peerID = id
+			// #region agent log
+			n := len(node.PeerTransports)
+			fmt.Printf("[agent][H16] request pickFallback peerID=%d transports=%d\n", peerID, n)
+			// #endregion
+		}
+	}
 	node.mu.Unlock()
 	if peerID == 0 {
 		peers, pErr := node.Store.GetAllPeers(1)
@@ -426,6 +442,94 @@ func ml_request_file(handle C.uintptr_t, fileHash *C.uint8_t, fileHashLen C.int3
 		return makeResult(nil, err)
 	}
 	fmt.Printf("[cabi][request] success peerID=%d reqBytes=%d chunks=%d\n", peerID, len(reqBytes), len(chunks))
+	return makeResult(reqBytes, nil)
+}
+
+//export ml_request_file_with_chunk_count
+func ml_request_file_with_chunk_count(handle C.uintptr_t, fileHash *C.uint8_t, fileHashLen C.int32_t, chunkCount C.int32_t) C.MLResult {
+	node, err := getNode(handle)
+	if err != nil {
+		fmt.Printf("[cabi][request2] getNode failed handle=%d err=%v\n", uintptr(handle), err)
+		return makeResult(nil, err)
+	}
+	if fileHash == nil || fileHashLen <= 0 || chunkCount <= 0 {
+		fmt.Printf("[cabi][request2] invalid args handle=%d fileHashNil=%v fileHashLen=%d chunkCount=%d\n", uintptr(handle), fileHash == nil, int32(fileHashLen), int32(chunkCount))
+		return makeResult(nil, codeToError(ML_ERR_INVALID_ARG))
+	}
+
+	hash := C.GoBytes(unsafe.Pointer(fileHash), fileHashLen)
+	fmt.Printf("[cabi][request2] begin hash=%x len=%d chunkCount=%d\n", hash, len(hash), int32(chunkCount))
+
+	chunks := make([]uint32, int32(chunkCount))
+	for i := range chunks {
+		chunks[i] = uint32(i)
+	}
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
+		fmt.Printf("[cabi][request2] nonce generation failed err=%v\n", err)
+		return makeResult(nil, err)
+	}
+	req := &pb.TransferRequest{
+		RequesterPubkey: node.Identity.Pubkey,
+		FileHash:        hash,
+		ChunkIndices:    chunks,
+		Nonce:           nonce,
+		Timestamp:       time.Now().Unix(),
+	}
+	sig, err := cabiSigner{node: node}.Sign(dag.TransferRequestSignableBytes(req))
+	if err != nil {
+		fmt.Printf("[cabi][request2] sign failed err=%v\n", err)
+		return makeResult(nil, err)
+	}
+	req.Signature = sig
+	if err := node.Store.InsertRequest(req); err != nil {
+		fmt.Printf("[cabi][request2] InsertRequest failed err=%v\n", err)
+		return makeResult(nil, err)
+	}
+
+	node.mu.Lock()
+	peerID := node.ActivePeer
+	if peerID != 0 {
+		if _, ok := node.PeerTransports[peerID]; !ok {
+			peerID = 0
+			node.ActivePeer = 0
+		}
+	}
+	if peerID == 0 {
+		if id := pickFallbackPeerIDLocked(node); id != 0 {
+			node.ActivePeer = id
+			peerID = id
+			// #region agent log
+			n := len(node.PeerTransports)
+			fmt.Printf("[agent][H16] request2 pickFallback peerID=%d transports=%d\n", peerID, n)
+			// #endregion
+		}
+	}
+	node.mu.Unlock()
+	// #region agent log
+	fmt.Printf("[agent][H8] request2 activePeer=%d hash=%x chunkCount=%d\n", peerID, hash, int32(chunkCount))
+	// #endregion
+	if peerID == 0 {
+		peers, pErr := node.Store.GetAllPeers(1)
+		if pErr != nil || len(peers) == 0 {
+			fmt.Printf("[cabi][request2] no active peer and no fallback peers err=%v\n", pErr)
+			return makeResult(nil, fmt.Errorf("no active peer available"))
+		}
+		peerID = uint64ToPeerID(peers[0].GetLastSeen())
+		// #region agent log
+		fmt.Printf("[agent][H8] request2 fallbackPeerFromStore=%d lastSeen=%d\n", peerID, peers[0].GetLastSeen())
+		// #endregion
+	}
+	if err := startSession(node, peerID, req, transfer.DirectionOutbound); err != nil {
+		fmt.Printf("[cabi][request2] startSession failed peerID=%d err=%v\n", peerID, err)
+		return makeResult(nil, err)
+	}
+	reqBytes, err := proto.Marshal(req)
+	if err != nil {
+		fmt.Printf("[cabi][request2] marshal failed err=%v\n", err)
+		return makeResult(nil, err)
+	}
+	fmt.Printf("[cabi][request2] success peerID=%d reqBytes=%d chunks=%d\n", peerID, len(reqBytes), len(chunks))
 	return makeResult(reqBytes, nil)
 }
 
@@ -451,10 +555,36 @@ func ml_on_peer_connected(handle C.uintptr_t, peerID C.uintptr_t) {
 		return
 	}
 
-	ensurePeerTransport(node, uintptr(peerID))
+	pid := uintptr(peerID)
+	ensurePeerTransport(node, pid)
+
+	var merge []*cabiPeerTransport
+	var canT *cabiPeerTransport
+	var canID uintptr
 	node.mu.Lock()
-	node.ActivePeer = uintptr(peerID)
+	canID = maxTransportPeerID(node)
+	canT = node.PeerTransports[canID]
+	if canT == nil {
+		node.mu.Unlock()
+		return
+	}
+	node.ActivePeer = canID
+	if len(node.PeerTransports) > 1 {
+		for id, t := range node.PeerTransports {
+			if id != canID && t != nil {
+				merge = append(merge, t)
+			}
+		}
+		// #region agent log
+		fmt.Printf("[agent][H18] peer_connected merge nOther=%d canonical=%d (last=%d)\n", len(merge), canID, pid)
+		// #endregion
+	}
 	node.mu.Unlock()
+	for _, t := range merge {
+		if t != nil && canT != nil && t != canT {
+			t.linkDelegate(canT)
+		}
+	}
 
 	sessionPub, sessionPriv, err := crypto.GenerateSessionKeyPair()
 
@@ -464,8 +594,7 @@ func ml_on_peer_connected(handle C.uintptr_t, peerID C.uintptr_t) {
 
 
 	// store the session private key for the peer so we can use it to derive the shared secret later.
-	node.SessionKeys[uintptr(peerID)] = sessionPriv
-
+	node.SessionKeys[pid] = sessionPriv
 
 	env := &pb.Envelope{
 		Payload: &pb.Envelope_Handshake{
@@ -483,7 +612,7 @@ func ml_on_peer_connected(handle C.uintptr_t, peerID C.uintptr_t) {
 	}
 
 	// Initial handshake advertises identity, policy, and ephemeral session key.
-	node.Callbacks.Send(uintptr(peerID), data)
+	node.Callbacks.Send(pid, data)
 }
 
 //export ml_on_peer_disconnected
@@ -492,18 +621,55 @@ func ml_on_peer_disconnected(handle C.uintptr_t, peerID C.uintptr_t) {
 	if err != nil {
 		return
 	}
+	// #region agent log
+	fmt.Printf("[agent][H9] on_peer_disconnected peerID=%d activeBefore=%d\n", uintptr(peerID), node.ActivePeer)
+	// #endregion
 
 	delete(node.SessionKeys, uintptr(peerID))
 	delete(node.SharedSecrets, uintptr(peerID))
+	dropped := uintptr(peerID)
 	node.mu.Lock()
-	delete(node.PeerTransports, uintptr(peerID))
-	if node.ActivePeer == uintptr(peerID) {
+	oldT := node.PeerTransports[dropped]
+	delete(node.PeerTransports, dropped)
+	if node.ActivePeer == dropped {
 		node.ActivePeer = 0
 	}
+	survT, survID := pickSurvivorTransportLocked(node)
+	var mergeOthers []*cabiPeerTransport
+	if survT != nil && len(node.PeerTransports) > 1 {
+		for id, t := range node.PeerTransports {
+			if id != survID && t != nil {
+				mergeOthers = append(mergeOthers, t)
+			}
+		}
+	}
+	if survT != nil && node.ActivePeer == 0 {
+		node.ActivePeer = survID
+		// #region agent log
+		fmt.Printf("[agent][H16] on_peer_disconnected rehomed activePeer=%d dropped=%d mergeOthers=%d\n", survID, dropped, len(mergeOthers))
+		// #endregion
+	}
 	node.mu.Unlock()
-	for _, s := range node.Transfer.List() {
-		if s != nil && s.PeerID == fmt.Sprintf("%d", uintptr(peerID)) {
-			node.Transfer.Remove(s.ID)
+
+	if oldT != nil && survT != nil && oldT != survT {
+		oldT.linkDelegate(survT)
+		droppedStr := fmt.Sprintf("%d", dropped)
+		survStr := fmt.Sprintf("%d", survID)
+		for _, s := range node.Transfer.List() {
+			if s != nil && s.PeerID == droppedStr {
+				s.RebindPeer(survStr)
+			}
+		}
+	} else if survT == nil {
+		for _, s := range node.Transfer.List() {
+			if s != nil && s.PeerID == fmt.Sprintf("%d", dropped) {
+				node.Transfer.Remove(s.ID)
+			}
+		}
+	}
+	for _, ot := range mergeOthers {
+		if ot != nil && survT != nil && ot != survT {
+			ot.linkDelegate(survT)
 		}
 	}
 	p := peerIDToPubkey(uintptr(peerID))
@@ -529,6 +695,7 @@ func ml_on_data_received(handle C.uintptr_t, peerID C.uintptr_t, data *C.uint8_t
 
 	env, err := wire.DecodeEnvelope(goData)
 	if err != nil {
+		fmt.Printf("[cabi] ml_on_data_received decode failed peer=%d bytes=%d err=%v\n", uintptr(peerID), len(goData), err)
 		return
 	}
 
@@ -577,6 +744,45 @@ func ml_on_data_received(handle C.uintptr_t, peerID C.uintptr_t, data *C.uint8_t
 	case *pb.Envelope_Handshake:
 		ensurePeerTransport(node, uintptr(peerID)).enqueue(env)
 	}
+}
+
+// maxTransportPeerID returns the largest peer id key, or 0 if the map is empty.
+// Dual GATT often yields a higher id for the inbound (GATT server) address; merging into
+// max keeps inbound chunk delivery aligned with the canonical transport.
+// Caller must hold node.mu.
+func maxTransportPeerID(node *NodeContext) uintptr {
+	if len(node.PeerTransports) == 0 {
+		return 0
+	}
+	maxID := uintptr(0)
+	for id := range node.PeerTransports {
+		if id > maxID {
+			maxID = id
+		}
+	}
+	return maxID
+}
+
+// pickSurvivorTransportLocked selects the canonical transport after removing a peer.
+// Prefers node.ActivePeer when still present; otherwise the maximum id (matches merge policy).
+// Caller must hold node.mu.
+func pickSurvivorTransportLocked(node *NodeContext) (*cabiPeerTransport, uintptr) {
+	if len(node.PeerTransports) == 0 {
+		return nil, 0
+	}
+	survID := maxTransportPeerID(node)
+	if node.ActivePeer != 0 {
+		if _, ok := node.PeerTransports[node.ActivePeer]; ok {
+			survID = node.ActivePeer
+		}
+	}
+	return node.PeerTransports[survID], survID
+}
+
+// pickFallbackPeerIDLocked picks a peer id for outbound requests when ActivePeer is unset.
+// Caller must hold node.mu.
+func pickFallbackPeerIDLocked(node *NodeContext) uintptr {
+	return maxTransportPeerID(node)
 }
 
 func bytesEqual(a, b []byte) bool {

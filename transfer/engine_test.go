@@ -54,7 +54,17 @@ func (m *mockSigner) Sign(message []byte) ([]byte, error) {
 type mockTransport struct {
 	peerID     string
 	recvQueue  []*pb.Envelope
+	preRecv    []*pb.Envelope
 	recvErr    error
+}
+
+func (m *mockTransport) takePre() (*pb.Envelope, bool) {
+	if len(m.preRecv) == 0 {
+		return nil, false
+	}
+	env := m.preRecv[0]
+	m.preRecv = m.preRecv[1:]
+	return env, true
 }
 
 func (m *mockTransport) Send(env *pb.Envelope) error {
@@ -65,12 +75,37 @@ func (m *mockTransport) Recv() (*pb.Envelope, error) {
 	if m.recvErr != nil {
 		return nil, m.recvErr
 	}
+	if env, ok := m.takePre(); ok {
+		return env, nil
+	}
 	if len(m.recvQueue) == 0 {
 		return nil, context.Canceled
 	}
 	env := m.recvQueue[0]
 	m.recvQueue = m.recvQueue[1:]
 	return env, nil
+}
+
+func (m *mockTransport) TryRecv() (*pb.Envelope, bool) {
+	if m.recvErr != nil {
+		return nil, false
+	}
+	if env, ok := m.takePre(); ok {
+		return env, true
+	}
+	if len(m.recvQueue) == 0 {
+		return nil, false
+	}
+	env := m.recvQueue[0]
+	m.recvQueue = m.recvQueue[1:]
+	return env, true
+}
+
+func (m *mockTransport) PutBack(env *pb.Envelope) {
+	if env == nil {
+		return
+	}
+	m.preRecv = append([]*pb.Envelope{env}, m.preRecv...)
 }
 
 func (m *mockTransport) PeerID() string {

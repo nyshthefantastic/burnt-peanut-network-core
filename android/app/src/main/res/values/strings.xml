@@ -11,6 +11,7 @@
     <string name="disconnect_peer">7) Disconnect Test Peer</string>
     <string name="destroy_node">8) Destroy Node</string>
     <string name="file_hash_hint">Paste file hash (hex) from sender phone</string>
+    <string name="chunk_count_hint">Optional: total chunks (from sender)</string>
     <string name="peer_address_hint">Optional: peer MAC (AA:BB:CC:DD:EE:FF)</string>
     <string name="peer_state_disconnected">BLE peers: disconnected</string>
     <string name="peer_state_connected">BLE peers: connected</string>

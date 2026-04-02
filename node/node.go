@@ -18,6 +18,8 @@ import (
 type Transport interface {
 	Send(env *pb.Envelope) error
 	Recv() (*pb.Envelope, error)
+	TryRecv() (*pb.Envelope, bool)
+	PutBack(env *pb.Envelope)
 	PeerID() string
 	Close() error
 }

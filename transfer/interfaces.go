@@ -27,6 +27,10 @@ type Signer interface {
 type Transport interface {
 	Send(env *pb.Envelope) error
 	Recv() (*pb.Envelope, error)
+	// TryRecv returns a queued envelope without blocking; ok is false when none is ready.
+	TryRecv() (env *pb.Envelope, ok bool)
+	// PutBack returns a non-consumed envelope to the head of the receive order (e.g. after draining ChunkBatches).
+	PutBack(env *pb.Envelope)
 	PeerID() string
 	Close() error
 }
